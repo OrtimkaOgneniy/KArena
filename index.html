@@ -24,6 +24,10 @@ canvas{display:block;width:100%;height:100%}
 #final-title{font-size:36px;font-weight:bold;margin-bottom:20px}
 #final-score{font-size:20px;color:#fff;margin-bottom:30px}
 #btn-restart{background:#0f0;color:#000;border:none;padding:15px 40px;font-size:18px;font-weight:bold;cursor:pointer;font-family:monospace}
+#ammo-bar{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:flex;gap:4px}
+.ammo-pip{width:12px;height:12px;background:#0f0;border:1px solid #0f0}
+.ammo-pip.empty{background:#333;border-color:#333}
+#reload-msg{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);color:#fa0;font-size:14px;font-weight:bold;display:none}
 </style>
 </head>
 <body>
@@ -40,6 +44,8 @@ canvas{display:block;width:100%;height:100%}
 </div>
 <div id="hp-bar"><div id="hp-fill" style="width:100%"></div></div>
 <div id="hp-text">100 / 100</div>
+<div id="ammo-bar"></div>
+<div id="reload-msg">ПЕРЕЗАРЯДКА...</div>
 </div>
 <div id="final-screen">
 <div id="final-title"></div>
@@ -53,7 +59,8 @@ const ctx=canvas.getContext('2d');
 canvas.width=960;canvas.height=540;
 
 let gameActive=false,player,enemy,keys={},bullets=[],obstacles=[],scoreH=0,scoreC=0;
-const MAX_SCORE=5,MAX_HP=100,SPD=4,BSPD=8,BR=4,DMG=50,SHOT_COOLDOWN=2000;
+const MAX_SCORE=5,MAX_HP=100,SPD=3,BSPD=8,BR=4,DMG=50,SHOT_COOLDOWN=2000;
+const MAX_AMMO=3,RELOAD_TIME=5000;
 
 document.getElementById('start-btn').onclick=()=>{
   document.getElementById('start-screen').style.display='none';
@@ -68,34 +75,68 @@ document.getElementById('btn-restart').onclick=()=>{
 function startGame(){
   gameActive=true;
   scoreH=0;scoreC=0;bullets=[];
-  player={x:200,y:270,hp:MAX_HP,alive:true,lastShot:0};
+  player={x:200,y:270,hp:MAX_HP,alive:true,lastShot:0,ammo:MAX_AMMO,reloading:false,reloadEnd:0};
   enemy={x:760,y:270,hp:MAX_HP,alive:true,lastShot:0,tx:760,ty:270,moveTimer:0};
   obstacles=[{x:280,y:100,w:80,h:60},{x:600,y:100,w:80,h:60},{x:280,y:380,w:80,h:60},{x:600,y:380,w:80,h:60},{x:440,y:240,w:80,h:60}];
+  updateAmmo();
   
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
   
   canvas.onmousedown=e=>{
-    if(!gameActive||!player.alive)return;
+    if(!gameActive||!player.alive||player.reloading)return;
     const now=Date.now();
     if(now-player.lastShot<SHOT_COOLDOWN)return;
+    if(player.ammo<=0){
+      startReload();
+      return;
+    }
     player.lastShot=now;
+    player.ammo--;
+    updateAmmo();
+    
     const r=canvas.getBoundingClientRect();
     const mx=(e.clientX-r.left)*(canvas.width/r.width);
     const my=(e.clientY-r.top)*(canvas.height/r.height);
     const a=Math.atan2(my-player.y,mx-player.x);
-    bullets.push({x:player.x,y:player.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80});
+    // Разброс пуль ±8 градусов
+    const spread=(Math.random()-0.5)*0.28;
+    bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*BSPD,dy:Math.sin(a+spread)*BSPD,life:80});
+    
+    if(player.ammo<=0)startReload();
   };
   
   gameLoop();
 }
 
-// Проверка столкновения с препятствиями
+function startReload(){
+  player.reloading=true;
+  player.reloadEnd=Date.now()+RELOAD_TIME;
+  document.getElementById('reload-msg').style.display='block';
+  setTimeout(()=>{
+    if(gameActive&&player.alive){
+      player.ammo=MAX_AMMO;
+      player.reloading=false;
+      document.getElementById('reload-msg').style.display='none';
+      updateAmmo();
+    }
+  },RELOAD_TIME);
+}
+
+function updateAmmo(){
+  const bar=document.getElementById('ammo-bar');
+  bar.innerHTML='';
+  for(let i=0;i<MAX_AMMO;i++){
+    const pip=document.createElement('div');
+    pip.className='ammo-pip'+(i<player.ammo?'':' empty');
+    bar.appendChild(pip);
+  }
+}
+
 function hitObs(x,y,r){
   return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h);
 }
 
-// Проверка видимости (есть ли прямая линия)
 function canSee(x1,y1,x2,y2){
   const steps=20;
   for(let i=0;i<=steps;i++){
@@ -107,51 +148,41 @@ function canSee(x1,y1,x2,y2){
   return true;
 }
 
-// Умное движение бота
 function botAI(){
   if(!enemy.alive)return;
   
   enemy.moveTimer--;
   
-  // Если мало HP - отступаем
   if(enemy.hp<MAX_HP*0.3){
-    // Ищем безопасную позицию (подальше от игрока)
     if(enemy.moveTimer<=0){
       enemy.moveTimer=30;
-      // Пытаемся уйти за препятствие
       const retreatX=enemy.x<canvas.width/2?100:canvas.width-100;
       const retreatY=enemy.y<canvas.height/2?100:canvas.height-100;
       enemy.tx=retreatX;
       enemy.ty=retreatY;
     }
   }
-  // Если видим игрока - стреляем и двигаемся к укрытию
   else if(canSee(enemy.x,enemy.y,player.x,player.y)){
-    // Стреляем
-    if(Date.now()-enemy.lastShot>SHOT_COOLDOWN*0.8){
+    if(Date.now()-enemy.lastShot>SHOT_COOLDOWN*0.7){
       enemy.lastShot=Date.now();
       const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true});
+      // Сайлент-аим: небольшой поворот пули к игроку
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.08});
     }
     
-    // Двигаемся зигзагом чтобы сложнее было попасть
     if(enemy.moveTimer<=0){
       enemy.moveTimer=20+Math.random()*20;
       const dx=player.x-enemy.x;
       const dy=player.y-enemy.y;
-      // Двигаемся перпендикулярно игроку
       enemy.tx=enemy.x-dy*0.5;
       enemy.ty=enemy.y+dx*0.3;
-      // Не уходим за границы
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
     }
   }
-  // Если не видим - идём на позицию откуда будет видно
   else{
     if(enemy.moveTimer<=0){
       enemy.moveTimer=40;
-      // Целевая точка - ближе к игроку но не вплотную
       const dx=player.x-enemy.x;
       const dy=player.y-enemy.y;
       const dist=Math.sqrt(dx*dx+dy*dy);
@@ -162,7 +193,6 @@ function botAI(){
     }
   }
   
-  // Движение к целевой точке с обходом препятствий
   const dx=enemy.tx-enemy.x;
   const dy=enemy.ty-enemy.y;
   const dist=Math.sqrt(dx*dx+dy*dy);
@@ -171,16 +201,13 @@ function botAI(){
     const moveX=enemy.x+(dx/dist)*SPD*0.7;
     const moveY=enemy.y+(dy/dist)*SPD*0.7;
     
-    // Проверяем препятствия по оси X
     if(!hitObs(moveX,enemy.y,12)){
       enemy.x=moveX;
     }else{
-      // Если уперлись - меняем целевую точку
       enemy.ty+=50*(Math.random()>0.5?1:-1);
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
     }
     
-    // Проверяем препятствия по оси Y
     if(!hitObs(enemy.x,moveY,12)){
       enemy.y=moveY;
     }else{
@@ -189,13 +216,20 @@ function botAI(){
     }
   }
   
-  // Границы
   enemy.x=Math.max(12,Math.min(canvas.width-12,enemy.x));
   enemy.y=Math.max(12,Math.min(canvas.height-12,enemy.y));
 }
 
 function gameLoop(){
   if(!gameActive){requestAnimationFrame(gameLoop);return}
+  
+  // Проверка окончания перезарядки
+  if(player.reloading&&Date.now()>player.reloadEnd){
+    player.ammo=MAX_AMMO;
+    player.reloading=false;
+    document.getElementById('reload-msg').style.display='none';
+    updateAmmo();
+  }
   
   // Игрок
   if(player.alive){
@@ -216,6 +250,18 @@ function gameLoop(){
   // Пули
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
+    
+    // Сайлент-аим для пуль бота
+    if(b.enemy&&b.homing&&player.alive){
+      const a=Math.atan2(player.y-b.y,player.x-b.x);
+      const curA=Math.atan2(b.dy,b.dx);
+      const diff=a-curA;
+      const turn=Math.max(-b.homing,Math.min(b.homing,diff));
+      const newA=curA+turn;
+      b.dx=Math.cos(newA)*BSPD;
+      b.dy=Math.sin(newA)*BSPD;
+    }
+    
     b.x+=b.dx;b.y+=b.dy;b.life--;
     let rem=b.life<=0||b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height||hitObs(b.x,b.y,BR);
     if(!rem){
