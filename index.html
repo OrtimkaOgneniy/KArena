@@ -41,7 +41,6 @@ canvas{display:block;width:100%;height:100%}
 #weapon-name{position:absolute;top:20px;right:20px;color:#0f0;font-size:18px;font-weight:bold}
 #weapon-hint{position:absolute;bottom:20px;right:20px;color:#888;font-size:12px}
 #scope-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle,transparent 200px,rgba(0,0,0,.9) 500px);pointer-events:none;display:none;z-index:15}
-#recoil-indicator{position:absolute;top:60px;right:20px;color:#fa0;font-size:12px;display:none}
 </style>
 </head>
 <body>
@@ -80,7 +79,6 @@ canvas{display:block;width:100%;height:100%}
 <div id="reload-msg">ПЕРЕЗАРЯДКА...</div>
 <div id="weapon-name"></div>
 <div id="weapon-hint">ЛКМ зажим — стрельба | Колёсико — смена</div>
-<div id="recoil-indicator">Отдача: 0%</div>
 </div>
 <div id="final-screen">
 <div id="final-title"></div>
@@ -159,7 +157,6 @@ function switchWeapon(){
   recoil=0;
   document.getElementById('reload-msg').style.display='none';
   document.getElementById('weapon-name').textContent=w.name;
-  document.getElementById('recoil-indicator').style.display='none';
   updateAmmo();
 }
 
@@ -395,9 +392,6 @@ function tryShoot(){
   player.ammo--;
   updateAmmo();
   
-  const r=canvas.getBoundingClientRect();
-  const mx=(e?.clientX?((e.clientX-r.left)*(canvas.width/r.width)):mouseX);
-  const my=(e?.clientY?((e.clientY-r.top)*(canvas.height/r.height)):mouseY);
   const a=Math.atan2(mouseY-player.y,mouseX-player.x);
   
   const currentRecoil=recoil*(Math.random()*0.5+0.5);
@@ -407,10 +401,6 @@ function tryShoot(){
   bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*bulletSpeed,dy:Math.sin(a+spread)*bulletSpeed,life:120,damage:damage});
   
   recoil=Math.min(w.maxRecoil,recoil+w.recoilPerShot);
-  if(recoil>0){
-    document.getElementById('recoil-indicator').style.display='block';
-    document.getElementById('recoil-indicator').textContent='Отдача: '+Math.round(recoil)+'%';
-  }
   
   if(player.ammo<=0)startReload();
 }
@@ -425,7 +415,6 @@ function gameLoop(){
     player.reloading=false;
     recoil=0;
     document.getElementById('reload-msg').style.display='none';
-    document.getElementById('recoil-indicator').style.display='none';
     updateAmmo();
   }
   
@@ -433,9 +422,6 @@ function gameLoop(){
     recoil=Math.max(0,recoil-0.3);
     if(recoil<=0.1){
       recoil=0;
-      document.getElementById('recoil-indicator').style.display='none';
-    }else{
-      document.getElementById('recoil-indicator').textContent='Отдача: '+Math.round(recoil)+'%';
     }
   }
   
