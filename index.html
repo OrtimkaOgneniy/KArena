@@ -104,6 +104,7 @@ canvas{display:block;width:100%;height:100%}
 <div id="final-screen">
 <div id="final-title"></div>
 <div id="final-score"></div>
+<button id="btn-restart" style="background:#0f0;color:#000;border:none;padding:20px 50px;font-size:22px;font-weight:bold;cursor:pointer;font-family:monospace;margin-top:20px">ЕЩЁ РАЗ</button>
 </div>
 </div>
 <script>
@@ -119,7 +120,7 @@ window.addEventListener('resize',resizeCanvas);
 
 let gameActive=false,player,enemy,keys={},bullets=[],obstacles=[],scoreH=0,scoreC=0;
 let selectedWeapon=null,selectedMap=null,aiming=false,mouseX=0,mouseY=0;
-let mouseDown=false,recoil=0;
+let mouseDown=false,recoil=0,currentMapName='';
 
 const WEAPONS={
   sniper:{
@@ -153,6 +154,9 @@ const MAPS={
   dense:{
     name:'ЛЕС',
     desc:'Ближняя борьба/пики',
+    color:'#1a3a1a',
+    obstacleColor:'#2d5a2d',
+    obstacleBorder:'#3d7a3d',
     obstacles:[
       {x:0.15,y:0.1,w:0.08,h:0.8},
       {x:0.3,y:0.2,w:0.06,h:0.6},
@@ -172,6 +176,9 @@ const MAPS={
   open:{
     name:'ПУСТОШЬ',
     desc:'аимность',
+    color:'#3a2a1a',
+    obstacleColor:'#5a3d2d',
+    obstacleBorder:'#7a4d3d',
     obstacles:[
       {x:0.25,y:0.4,w:0.1,h:0.2},
       {x:0.65,y:0.4,w:0.1,h:0.2},
@@ -182,6 +189,9 @@ const MAPS={
   corridors:{
     name:'КОРИДОРЫ',
     desc:'бекрумс',
+    color:'#2a2a3a',
+    obstacleColor:'#3d3d5a',
+    obstacleBorder:'#4d4d7a',
     obstacles:[
       {x:0.2,y:0,w:0.08,h:0.35},
       {x:0.2,y:0.65,w:0.08,h:0.35},
@@ -197,6 +207,9 @@ const MAPS={
   rooms:{
     name:'КОМНАТЫ',
     desc:'домность',
+    color:'#3a3a2a',
+    obstacleColor:'#5a5a3d',
+    obstacleBorder:'#7a7a4d',
     obstacles:[
       {x:0.3,y:0.15,w:0.4,h:0.08},
       {x:0.3,y:0.77,w:0.4,h:0.08},
@@ -301,9 +314,18 @@ canvas.addEventListener('mousemove',e=>{
 });
 
 canvas.addEventListener('mousedown',e=>{
-  if(e.button===2)return;
+  if(e.button===2){
+    if(gameActive&&player.alive&&player.weapon==='sniper'){
+      aiming=true;
+      document.getElementById('scope-overlay').style.display='block';
+    }
+    return;
+  }
   if(e.button===0){
     mouseDown=true;
+    if(gameActive&&player.alive&&player.weapon==='sniper'){
+      shoot();
+    }
   }
 });
 
@@ -322,22 +344,24 @@ function startGame(){
   scoreH=0;scoreC=0;bullets=[];
   recoil=0;
   mouseDown=false;
+  aiming=false;
   
   const w=WEAPONS[selectedWeapon];
   player={
-    x:canvas.width*0.2,y:canvas.height/2,hp:MAX_HP,alive:true,
+    x:canvas.width*0.15,y:canvas.height/2,hp:MAX_HP,alive:true,
     lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,
-    weapon:selectedWeapon,aiming:false
+    weapon:selectedWeapon
   };
   
   enemy={
-    x:canvas.width*0.8,y:canvas.height/2,hp:MAX_HP,alive:true,
-    lastShot:0,tx:canvas.width*0.8,ty:canvas.height/2,moveTimer:0,
+    x:canvas.width*0.85,y:canvas.height/2,hp:MAX_HP,alive:true,
+    lastShot:0,tx:canvas.width*0.85,ty:canvas.height/2,moveTimer:0,
     weapon:'smg+',
     damage:20,
     fireRate:400
   };
   
+  currentMapName=selectedMap;
   const cw=canvas.width,ch=canvas.height;
   const mapData=MAPS[selectedMap].obstacles;
   obstacles=mapData.map(o=>({
@@ -553,15 +577,25 @@ function gameLoop(){
   
   botAI();
   
-  ctx.fillStyle='#000';
+  const map=MAPS[currentMapName];
+  ctx.fillStyle=map?map.color:'#000';
   ctx.fillRect(0,0,canvas.width,canvas.height);
+  
   ctx.strokeStyle='#111';
   const gridSize=40;
   for(let i=0;i<canvas.width;i+=gridSize){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke()}
   for(let j=0;j<canvas.height;j+=gridSize){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(canvas.width,j);ctx.stroke()}
   
-  ctx.fillStyle='#1a1a2e';
-  obstacles.forEach(o=>{ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle='#333';ctx.strokeRect(o.x,o.y,o.w,o.h)});
+  if(map){
+    obstacles.forEach(o=>{
+      ctx.fillStyle=map.obstacleColor;
+      ctx.fillRect(o.x,o.y,o.w,o.h);
+      ctx.strokeStyle=map.obstacleBorder;
+      ctx.lineWidth=2;
+      ctx.strokeRect(o.x,o.y,o.w,o.h);
+      ctx.lineWidth=1;
+    });
+  }
   
   if(aiming&&player.weapon==='sniper'&&player.alive){
     const a=Math.atan2(mouseY-player.y,mouseX-player.x);
@@ -617,7 +651,7 @@ function gameLoop(){
             scoreC++;
             setTimeout(()=>{
               if(scoreC<MAX_SCORE){
-                player.x=canvas.width*0.2;player.y=canvas.height/2;player.hp=MAX_HP;player.alive=true;
+                player.x=canvas.width*0.15;player.y=canvas.height/2;player.hp=MAX_HP;player.alive=true;
               }
             },1500);
             checkWin();
@@ -629,7 +663,7 @@ function gameLoop(){
             scoreH++;
             setTimeout(()=>{
               if(scoreH<MAX_SCORE){
-                enemy.x=canvas.width*0.8;enemy.y=canvas.height/2;enemy.hp=MAX_HP;enemy.alive=true;
+                enemy.x=canvas.width*0.85;enemy.y=canvas.height/2;enemy.hp=MAX_HP;enemy.alive=true;
               }
             },1500);
             checkWin();
