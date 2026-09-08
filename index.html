@@ -99,7 +99,6 @@ function startGame(){
     const mx=(e.clientX-r.left)*(canvas.width/r.width);
     const my=(e.clientY-r.top)*(canvas.height/r.height);
     const a=Math.atan2(my-player.y,mx-player.x);
-    // Разброс пуль ±8 градусов
     const spread=(Math.random()-0.5)*0.28;
     bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*BSPD,dy:Math.sin(a+spread)*BSPD,life:80});
     
@@ -166,8 +165,7 @@ function botAI(){
     if(Date.now()-enemy.lastShot>SHOT_COOLDOWN*0.7){
       enemy.lastShot=Date.now();
       const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
-      // Сайлент-аим: небольшой поворот пули к игроку
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.08});
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.02});
     }
     
     if(enemy.moveTimer<=0){
@@ -223,7 +221,6 @@ function botAI(){
 function gameLoop(){
   if(!gameActive){requestAnimationFrame(gameLoop);return}
   
-  // Проверка окончания перезарядки
   if(player.reloading&&Date.now()>player.reloadEnd){
     player.ammo=MAX_AMMO;
     player.reloading=false;
@@ -231,7 +228,6 @@ function gameLoop(){
     updateAmmo();
   }
   
-  // Игрок
   if(player.alive){
     let nx=player.x,ny=player.y;
     if(keys['KeyW']||keys['ArrowUp'])ny-=SPD;
@@ -244,14 +240,11 @@ function gameLoop(){
     if(!hitObs(player.x,ny,10))player.y=ny;
   }
   
-  // Бот AI
   botAI();
   
-  // Пули
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     
-    // Сайлент-аим для пуль бота
     if(b.enemy&&b.homing&&player.alive){
       const a=Math.atan2(player.y-b.y,player.x-b.x);
       const curA=Math.atan2(b.dy,b.dx);
@@ -298,23 +291,17 @@ function gameLoop(){
     if(rem)bullets.splice(i,1);
   }
   
-  // Отрисовка
   ctx.fillStyle='#000';
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  
-  // Сетка
   ctx.strokeStyle='#111';
   for(let i=0;i<canvas.width;i+=24){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke()}
   for(let j=0;j<canvas.height;j+=24){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(canvas.width,j);ctx.stroke()}
   
-  // Препятствия
   ctx.fillStyle='#1a1a2e';
   obstacles.forEach(o=>{ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle='#333';ctx.strokeRect(o.x,o.y,o.w,o.h)});
   
-  // Пули
   bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':'#ff0';ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
   
-  // Игрок
   if(player.alive){
     ctx.fillStyle='#0f0';
     ctx.fillRect(player.x-10,player.y-10,20,20);
@@ -324,7 +311,6 @@ function gameLoop(){
     ctx.fillText(Math.max(0,player.hp),player.x,player.y-16);
   }
   
-  // Бот
   if(enemy.alive){
     ctx.fillStyle='#f00';
     ctx.fillRect(enemy.x-10,enemy.y-10,20,20);
@@ -334,12 +320,10 @@ function gameLoop(){
     ctx.fillText(Math.max(0,enemy.hp),enemy.x,enemy.y-16);
   }
   
-  // HP бар
   document.getElementById('hp-fill').style.width=Math.max(0,player.hp)+'%';
   document.getElementById('hp-fill').style.background=player.hp>50?'#0f0':player.hp>25?'#fa0':'#f00';
   document.getElementById('hp-text').textContent=Math.max(0,player.hp)+' / '+MAX_HP;
   
-  // Счёт
   document.getElementById('score-host').innerHTML=scoreH+'<span class="score-label">ТЫ</span>';
   document.getElementById('score-client').innerHTML=scoreC+'<span class="score-label">БОТ</span>';
   
