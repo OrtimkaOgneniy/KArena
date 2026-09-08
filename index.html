@@ -36,13 +36,12 @@ canvas{display:block;width:100%;height:100%}
 #weapon-name{position:absolute;top:10px;right:10px;color:#0f0;font-size:14px;font-weight:bold}
 #weapon-hint{position:absolute;bottom:10px;right:10px;color:#888;font-size:10px}
 #scope-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle,transparent 150px,rgba(0,0,0,.85) 400px);pointer-events:none;display:none;z-index:15}
-#scope-line{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2000px;height:2px;background:rgba(255,0,0,.7);display:none}
 </style>
 </head>
 <body>
 <div id="game-container">
 <canvas id="gameCanvas"></canvas>
-<div id="scope-overlay"><div id="scope-line"></div></div>
+<div id="scope-overlay"></div>
 <div id="start-screen">
 <div id="start-title">⚔️ KARENA ⚔️</div>
 <div class="weapon-select">
@@ -114,7 +113,7 @@ function selectWeapon(weapon){
   
   const w=WEAPONS[weapon];
   const info=weapon==='sniper'
-    ?'🎯 Урон: 50 | Патроны: 3 | Скорострельность: 2 сек<br>🔭 ПКМ: прицел (70 урона, -50% скорости)'
+    ?'🎯 Урон: 50 | Патроны: 3 | Скорострельность: 2 сек<br>🔭 ПКМ: прицел (70 урона, 3x скорость пули, -50% скорости)'
     :'🔫 Урон: 15 | Патроны: 50 | Скорострельность: 0.5 сек<br>📈 Есть разброс, высокая скорострельность';
   document.getElementById('weaponInfo').innerHTML=info;
 }
@@ -144,8 +143,6 @@ canvas.addEventListener('contextmenu',e=>{
   if(gameActive&&player.alive&&player.weapon==='sniper'){
     aiming=true;
     document.getElementById('scope-overlay').style.display='block';
-    document.getElementById('scope-line').style.display='block';
-    updateScopeLine();
   }
 });
 
@@ -153,22 +150,14 @@ canvas.addEventListener('mousemove',e=>{
   const r=canvas.getBoundingClientRect();
   mouseX=(e.clientX-r.left)*(canvas.width/r.width);
   mouseY=(e.clientY-r.top)*(canvas.height/r.height);
-  if(aiming)updateScopeLine();
 });
 
 document.addEventListener('mouseup',e=>{
   if(e.button===2){
     aiming=false;
     document.getElementById('scope-overlay').style.display='none';
-    document.getElementById('scope-line').style.display='none';
   }
 });
-
-function updateScopeLine(){
-  const line=document.getElementById('scope-line');
-  const angle=Math.atan2(mouseY-canvas.height/2,mouseX-canvas.width/2)*180/Math.PI;
-  line.style.transform=`translate(-50%,-50%) rotate(${angle}deg)`;
-}
 
 document.getElementById('start-btn').onclick=()=>{
   if(!selectedWeapon)return;
@@ -228,7 +217,8 @@ function startGame(){
     const a=Math.atan2(my-player.y,mx-player.x);
     const spread=(Math.random()-0.5)*w.spread;
     const damage=player.weapon==='sniper'&&aiming?w.scopedDamage:w.damage;
-    bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*BSPD,dy:Math.sin(a+spread)*BSPD,life:80,damage:damage});
+    const bulletSpeed=player.weapon==='sniper'&&aiming?BSPD*3:BSPD;
+    bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*bulletSpeed,dy:Math.sin(a+spread)*bulletSpeed,life:80,damage:damage});
     
     if(player.ammo<=0)startReload();
   };
@@ -380,6 +370,48 @@ function gameLoop(){
   
   botAI();
   
+  // Отрисовка
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='#111';
+  for(let i=0;i<canvas.width;i+=24){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke()}
+  for(let j=0;j<canvas.height;j+=24){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(canvas.width,j);ctx.stroke()}
+  
+  ctx.fillStyle='#1a1a2e';
+  obstacles.forEach(o=>{ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle='#333';ctx.strokeRect(o.x,o.y,o.w,o.h)});
+  
+  // Траектория при прицеливании
+  if(aiming&&player.weapon==='sniper'&&player.alive){
+    const a=Math.atan2(mouseY-player.y,mouseX-player.x);
+    ctx.strokeStyle='rgba(255,0,0,.8)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(player.x,player.y);
+    ctx.lineTo(player.x+Math.cos(a)*800,player.y+Math.sin(a)*800);
+    ctx.stroke();
+    ctx.lineWidth=1;
+  }
+  
+  bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':(b.damage>=70?'#f00':b.damage===50?'#ff0':'#f0f');ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
+  
+  if(player.alive){
+    ctx.fillStyle='#0f0';
+    ctx.fillRect(player.x-10,player.y-10,20,20);
+    ctx.fillStyle='#fff';
+    ctx.font='10px monospace';
+    ctx.textAlign='center';
+    ctx.fillText(Math.max(0,player.hp),player.x,player.y-16);
+  }
+  
+  if(enemy.alive){
+    ctx.fillStyle='#f00';
+    ctx.fillRect(enemy.x-10,enemy.y-10,20,20);
+    ctx.fillStyle='#fff';
+    ctx.font='10px monospace';
+    ctx.textAlign='center';
+    ctx.fillText(Math.max(0,enemy.hp),enemy.x,enemy.y-16);
+  }
+  
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     
@@ -428,35 +460,6 @@ function gameLoop(){
       }
     }
     if(rem)bullets.splice(i,1);
-  }
-  
-  ctx.fillStyle='#000';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.strokeStyle='#111';
-  for(let i=0;i<canvas.width;i+=24){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke()}
-  for(let j=0;j<canvas.height;j+=24){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(canvas.width,j);ctx.stroke()}
-  
-  ctx.fillStyle='#1a1a2e';
-  obstacles.forEach(o=>{ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle='#333';ctx.strokeRect(o.x,o.y,o.w,o.h)});
-  
-  bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':(b.damage>=70?'#f00':b.damage===50?'#ff0':'#f0f');ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
-  
-  if(player.alive){
-    ctx.fillStyle='#0f0';
-    ctx.fillRect(player.x-10,player.y-10,20,20);
-    ctx.fillStyle='#fff';
-    ctx.font='10px monospace';
-    ctx.textAlign='center';
-    ctx.fillText(Math.max(0,player.hp),player.x,player.y-16);
-  }
-  
-  if(enemy.alive){
-    ctx.fillStyle='#f00';
-    ctx.fillRect(enemy.x-10,enemy.y-10,20,20);
-    ctx.fillStyle='#fff';
-    ctx.font='10px monospace';
-    ctx.textAlign='center';
-    ctx.fillText(Math.max(0,enemy.hp),enemy.x,enemy.y-16);
   }
   
   document.getElementById('hp-fill').style.width=Math.max(0,player.hp)+'%';
