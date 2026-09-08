@@ -69,7 +69,7 @@ function startGame(){
   gameActive=true;
   scoreH=0;scoreC=0;bullets=[];
   player={x:200,y:270,hp:MAX_HP,alive:true,lastShot:0};
-  enemy={x:760,y:270,hp:MAX_HP,alive:true,lastShot:0};
+  enemy={x:760,y:270,hp:MAX_HP,alive:true,lastShot:0,tx:760,ty:270,moveTimer:0};
   obstacles=[{x:280,y:100,w:80,h:60},{x:600,y:100,w:80,h:60},{x:280,y:380,w:80,h:60},{x:600,y:380,w:80,h:60},{x:440,y:240,w:80,h:60}];
   
   window.onkeydown=e=>keys[e.code]=true;
@@ -90,6 +90,110 @@ function startGame(){
   gameLoop();
 }
 
+// Проверка столкновения с препятствиями
+function hitObs(x,y,r){
+  return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h);
+}
+
+// Проверка видимости (есть ли прямая линия)
+function canSee(x1,y1,x2,y2){
+  const steps=20;
+  for(let i=0;i<=steps;i++){
+    const t=i/steps;
+    const x=x1+(x2-x1)*t;
+    const y=y1+(y2-y1)*t;
+    if(hitObs(x,y,5))return false;
+  }
+  return true;
+}
+
+// Умное движение бота
+function botAI(){
+  if(!enemy.alive)return;
+  
+  enemy.moveTimer--;
+  
+  // Если мало HP - отступаем
+  if(enemy.hp<MAX_HP*0.3){
+    // Ищем безопасную позицию (подальше от игрока)
+    if(enemy.moveTimer<=0){
+      enemy.moveTimer=30;
+      // Пытаемся уйти за препятствие
+      const retreatX=enemy.x<canvas.width/2?100:canvas.width-100;
+      const retreatY=enemy.y<canvas.height/2?100:canvas.height-100;
+      enemy.tx=retreatX;
+      enemy.ty=retreatY;
+    }
+  }
+  // Если видим игрока - стреляем и двигаемся к укрытию
+  else if(canSee(enemy.x,enemy.y,player.x,player.y)){
+    // Стреляем
+    if(Date.now()-enemy.lastShot>SHOT_COOLDOWN*0.8){
+      enemy.lastShot=Date.now();
+      const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true});
+    }
+    
+    // Двигаемся зигзагом чтобы сложнее было попасть
+    if(enemy.moveTimer<=0){
+      enemy.moveTimer=20+Math.random()*20;
+      const dx=player.x-enemy.x;
+      const dy=player.y-enemy.y;
+      // Двигаемся перпендикулярно игроку
+      enemy.tx=enemy.x-dy*0.5;
+      enemy.ty=enemy.y+dx*0.3;
+      // Не уходим за границы
+      enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
+      enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
+    }
+  }
+  // Если не видим - идём на позицию откуда будет видно
+  else{
+    if(enemy.moveTimer<=0){
+      enemy.moveTimer=40;
+      // Целевая точка - ближе к игроку но не вплотную
+      const dx=player.x-enemy.x;
+      const dy=player.y-enemy.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      enemy.tx=enemy.x+dx/dist*100;
+      enemy.ty=enemy.y+dy/dist*100;
+      enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
+      enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
+    }
+  }
+  
+  // Движение к целевой точке с обходом препятствий
+  const dx=enemy.tx-enemy.x;
+  const dy=enemy.ty-enemy.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  
+  if(dist>5){
+    const moveX=enemy.x+(dx/dist)*SPD*0.7;
+    const moveY=enemy.y+(dy/dist)*SPD*0.7;
+    
+    // Проверяем препятствия по оси X
+    if(!hitObs(moveX,enemy.y,12)){
+      enemy.x=moveX;
+    }else{
+      // Если уперлись - меняем целевую точку
+      enemy.ty+=50*(Math.random()>0.5?1:-1);
+      enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
+    }
+    
+    // Проверяем препятствия по оси Y
+    if(!hitObs(enemy.x,moveY,12)){
+      enemy.y=moveY;
+    }else{
+      enemy.tx+=50*(Math.random()>0.5?1:-1);
+      enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
+    }
+  }
+  
+  // Границы
+  enemy.x=Math.max(12,Math.min(canvas.width-12,enemy.x));
+  enemy.y=Math.max(12,Math.min(canvas.height-12,enemy.y));
+}
+
 function gameLoop(){
   if(!gameActive){requestAnimationFrame(gameLoop);return}
   
@@ -106,18 +210,8 @@ function gameLoop(){
     if(!hitObs(player.x,ny,10))player.y=ny;
   }
   
-  // Бот
-  if(enemy.alive){
-    if(enemy.x<player.x-20)enemy.x+=SPD*0.7;
-    if(enemy.x>player.x+20)enemy.x-=SPD*0.7;
-    if(enemy.y<player.y-20)enemy.y+=SPD*0.7;
-    if(enemy.y>player.y+20)enemy.y-=SPD*0.7;
-    if(Date.now()-enemy.lastShot>SHOT_COOLDOWN&&Math.abs(player.x-enemy.x)<300&&Math.abs(player.y-enemy.y)<300){
-      enemy.lastShot=Date.now();
-      const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true});
-    }
-  }
+  // Бот AI
+  botAI();
   
   // Пули
   for(let i=bullets.length-1;i>=0;i--){
@@ -128,22 +222,35 @@ function gameLoop(){
       const t=b.enemy?player:enemy;
       if(t.alive&&Math.abs(b.x-t.x)<14&&Math.abs(b.y-t.y)<14){
         rem=true;
-        if(b.enemy){player.hp-=DMG;if(player.hp<=0){player.alive=false;scoreC++;checkWin();}}
-        else{enemy.hp-=DMG;if(enemy.hp<=0){enemy.alive=false;scoreH++;checkWin();}}
+        if(b.enemy){
+          player.hp-=DMG;
+          if(player.hp<=0){
+            player.alive=false;
+            scoreC++;
+            setTimeout(()=>{
+              if(scoreC<MAX_SCORE){
+                player.x=200;player.y=270;player.hp=MAX_HP;player.alive=true;
+              }
+            },1500);
+            checkWin();
+          }
+        }else{
+          enemy.hp-=DMG;
+          if(enemy.hp<=0){
+            enemy.alive=false;
+            scoreH++;
+            setTimeout(()=>{
+              if(scoreH<MAX_SCORE){
+                enemy.x=760;enemy.y=270;enemy.hp=MAX_HP;enemy.alive=true;
+              }
+            },1500);
+            checkWin();
+          }
+        }
       }
     }
     if(rem)bullets.splice(i,1);
   }
-  
-  // Респаун
-  if(!player.alive&&player.hp<=-1000){
-    player.x=200;player.y=270;player.hp=MAX_HP;player.alive=true;
-  }
-  if(!enemy.alive&&enemy.hp<=-1000){
-    enemy.x=760;enemy.y=270;enemy.hp=MAX_HP;enemy.alive=true;
-  }
-  if(!player.alive)player.hp-=1;
-  if(!enemy.alive)enemy.hp-=1;
   
   // Отрисовка
   ctx.fillStyle='#000';
@@ -191,10 +298,6 @@ function gameLoop(){
   document.getElementById('score-client').innerHTML=scoreC+'<span class="score-label">БОТ</span>';
   
   requestAnimationFrame(gameLoop);
-}
-
-function hitObs(x,y,r){
-  return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h);
 }
 
 function checkWin(){
