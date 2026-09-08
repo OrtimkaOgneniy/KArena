@@ -157,6 +157,8 @@ const MAPS={
     color:'#1a3a1a',
     obstacleColor:'#2d5a2d',
     obstacleBorder:'#3d7a3d',
+    spawnPlayer:{x:0.08,y:0.5},
+    spawnEnemy:{x:0.92,y:0.5},
     obstacles:[
       {x:0.15,y:0.1,w:0.08,h:0.8},
       {x:0.3,y:0.2,w:0.06,h:0.6},
@@ -179,6 +181,8 @@ const MAPS={
     color:'#3a2a1a',
     obstacleColor:'#5a3d2d',
     obstacleBorder:'#7a4d3d',
+    spawnPlayer:{x:0.1,y:0.5},
+    spawnEnemy:{x:0.9,y:0.5},
     obstacles:[
       {x:0.25,y:0.4,w:0.1,h:0.2},
       {x:0.65,y:0.4,w:0.1,h:0.2},
@@ -192,6 +196,8 @@ const MAPS={
     color:'#2a2a3a',
     obstacleColor:'#3d3d5a',
     obstacleBorder:'#4d4d7a',
+    spawnPlayer:{x:0.12,y:0.15},
+    spawnEnemy:{x:0.88,y:0.85},
     obstacles:[
       {x:0.2,y:0,w:0.08,h:0.35},
       {x:0.2,y:0.65,w:0.08,h:0.35},
@@ -210,6 +216,8 @@ const MAPS={
     color:'#3a3a2a',
     obstacleColor:'#5a5a3d',
     obstacleBorder:'#7a7a4d',
+    spawnPlayer:{x:0.08,y:0.5},
+    spawnEnemy:{x:0.92,y:0.5},
     obstacles:[
       {x:0.3,y:0.15,w:0.4,h:0.08},
       {x:0.3,y:0.77,w:0.4,h:0.08},
@@ -347,15 +355,21 @@ function startGame(){
   aiming=false;
   
   const w=WEAPONS[selectedWeapon];
+  const map=MAPS[selectedMap];
+  
   player={
-    x:canvas.width*0.15,y:canvas.height/2,hp:MAX_HP,alive:true,
+    x:map.spawnPlayer.x*canvas.width,
+    y:map.spawnPlayer.y*canvas.height,
+    hp:MAX_HP,alive:true,
     lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,
     weapon:selectedWeapon
   };
   
   enemy={
-    x:canvas.width*0.85,y:canvas.height/2,hp:MAX_HP,alive:true,
-    lastShot:0,tx:canvas.width*0.85,ty:canvas.height/2,moveTimer:0,
+    x:map.spawnEnemy.x*canvas.width,
+    y:map.spawnEnemy.y*canvas.height,
+    hp:MAX_HP,alive:true,
+    lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,
     weapon:'smg+',
     damage:20,
     fireRate:400
@@ -363,7 +377,7 @@ function startGame(){
   
   currentMapName=selectedMap;
   const cw=canvas.width,ch=canvas.height;
-  const mapData=MAPS[selectedMap].obstacles;
+  const mapData=map.obstacles;
   obstacles=mapData.map(o=>({
     x:o.x*cw,
     y:o.y*ch,
@@ -651,7 +665,11 @@ function gameLoop(){
             scoreC++;
             setTimeout(()=>{
               if(scoreC<MAX_SCORE){
-                player.x=canvas.width*0.15;player.y=canvas.height/2;player.hp=MAX_HP;player.alive=true;
+                const map=MAPS[currentMapName];
+                player.x=map.spawnPlayer.x*canvas.width;
+                player.y=map.spawnPlayer.y*canvas.height;
+                player.hp=MAX_HP;
+                player.alive=true;
               }
             },1500);
             checkWin();
@@ -663,7 +681,11 @@ function gameLoop(){
             scoreH++;
             setTimeout(()=>{
               if(scoreH<MAX_SCORE){
-                enemy.x=canvas.width*0.85;enemy.y=canvas.height/2;enemy.hp=MAX_HP;enemy.alive=true;
+                const map=MAPS[currentMapName];
+                enemy.x=map.spawnEnemy.x*canvas.width;
+                enemy.y=map.spawnEnemy.y*canvas.height;
+                enemy.hp=MAX_HP;
+                enemy.alive=true;
               }
             },1500);
             checkWin();
