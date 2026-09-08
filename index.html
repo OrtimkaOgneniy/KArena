@@ -17,7 +17,12 @@ canvas{display:block;width:100%;height:100%}
 #hp-fill{height:100%;background:#0f0}
 #hp-text{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#0f0;font-size:11px;font-weight:bold}
 #start-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.95);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:20}
-#start-title{font-size:48px;color:#0f0;margin-bottom:20px;text-shadow:0 0 20px #0f0}
+#start-title{font-size:48px;color:#0f0;margin-bottom:30px;text-shadow:0 0 20px #0f0}
+.weapon-select{display:flex;gap:20px;margin-bottom:20px}
+.weapon-btn{background:#000;color:#0f0;border:2px solid #0f0;padding:20px 40px;font-size:16px;font-weight:bold;cursor:pointer;font-family:monospace;min-width:200px}
+.weapon-btn:hover{background:#0f0;color:#000}
+.weapon-btn.selected{background:#0f0;color:#000}
+.weapon-info{color:#8f8;font-size:12px;margin-bottom:15px;text-align:center;max-width:400px;line-height:1.6}
 #start-btn{background:#0f0;color:#000;border:none;padding:15px 40px;font-size:18px;font-weight:bold;cursor:pointer;font-family:monospace}
 #start-btn:hover{background:#8f8}
 #final-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.92);display:none;flex-direction:column;justify-content:center;align-items:center;z-index:20}
@@ -28,6 +33,7 @@ canvas{display:block;width:100%;height:100%}
 .ammo-pip{width:12px;height:12px;background:#0f0;border:1px solid #0f0}
 .ammo-pip.empty{background:#333;border-color:#333}
 #reload-msg{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);color:#fa0;font-size:14px;font-weight:bold;display:none}
+#weapon-name{position:absolute;top:10px;right:10px;color:#0f0;font-size:14px;font-weight:bold}
 </style>
 </head>
 <body>
@@ -35,7 +41,14 @@ canvas{display:block;width:100%;height:100%}
 <canvas id="gameCanvas"></canvas>
 <div id="start-screen">
 <div id="start-title">⚔️ KARENA ⚔️</div>
-<button id="start-btn">НАЧАТЬ ИГРУ</button>
+<div class="weapon-select">
+<button class="weapon-btn" id="btnSniper" onclick="selectWeapon('sniper')">СНАЙПЕРКА</button>
+<button class="weapon-btn" id="btnSMG" onclick="selectWeapon('smg')">ПП</button>
+</div>
+<div class="weapon-info" id="weaponInfo">
+Выбери оружие для старта
+</div>
+<button id="start-btn" disabled>НАЧАТЬ ИГРУ</button>
 </div>
 <div id="hud">
 <div id="scoreboard">
@@ -46,6 +59,7 @@ canvas{display:block;width:100%;height:100%}
 <div id="hp-text">100 / 100</div>
 <div id="ammo-bar"></div>
 <div id="reload-msg">ПЕРЕЗАРЯДКА...</div>
+<div id="weapon-name"></div>
 </div>
 <div id="final-screen">
 <div id="final-title"></div>
@@ -59,10 +73,46 @@ const ctx=canvas.getContext('2d');
 canvas.width=960;canvas.height=540;
 
 let gameActive=false,player,enemy,keys={},bullets=[],obstacles=[],scoreH=0,scoreC=0;
-const MAX_SCORE=5,MAX_HP=100,SPD=3,BSPD=8,BR=4,DMG=50,SHOT_COOLDOWN=2000;
-const MAX_AMMO=3,RELOAD_TIME=5000;
+let selectedWeapon=null;
+
+const WEAPONS={
+  sniper:{
+    name:'СНАЙПЕРКА',
+    damage:50,
+    maxAmmo:3,
+    reloadTime:5000,
+    fireRate:2000,
+    spread:0,
+    color:'#ff0'
+  },
+  smg:{
+    name:'ПП',
+    damage:15,
+    maxAmmo:50,
+    reloadTime:5000,
+    fireRate:500,
+    spread:0.2,
+    color:'#f0f'
+  }
+};
+
+const MAX_SCORE=5,MAX_HP=100,SPD=3,BSPD=8,BR=4;
+
+function selectWeapon(weapon){
+  selectedWeapon=weapon;
+  document.getElementById('btnSniper').classList.toggle('selected',weapon==='sniper');
+  document.getElementById('btnSMG').classList.toggle('selected',weapon==='smg');
+  document.getElementById('start-btn').disabled=false;
+  
+  const w=WEAPONS[weapon];
+  const info=weapon==='sniper'
+    ?'🎯 Урон: 50 | Патроны: 3 | Скорострельность: 2 сек<br>📏 Без разброса, высокая точность'
+    :'🔫 Урон: 15 | Патроны: 50 | Скорострельность: 0.5 сек<br>📈 Есть разброс, высокая скорострельность';
+  document.getElementById('weaponInfo').innerHTML=info;
+}
 
 document.getElementById('start-btn').onclick=()=>{
+  if(!selectedWeapon)return;
   document.getElementById('start-screen').style.display='none';
   startGame();
 };
@@ -75,9 +125,17 @@ document.getElementById('btn-restart').onclick=()=>{
 function startGame(){
   gameActive=true;
   scoreH=0;scoreC=0;bullets=[];
-  player={x:200,y:270,hp:MAX_HP,alive:true,lastShot:0,ammo:MAX_AMMO,reloading:false,reloadEnd:0};
+  
+  const w=WEAPONS[selectedWeapon];
+  player={
+    x:200,y:270,hp:MAX_HP,alive:true,
+    lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,
+    weapon:selectedWeapon
+  };
   enemy={x:760,y:270,hp:MAX_HP,alive:true,lastShot:0,tx:760,ty:270,moveTimer:0};
   obstacles=[{x:280,y:100,w:80,h:60},{x:600,y:100,w:80,h:60},{x:280,y:380,w:80,h:60},{x:600,y:380,w:80,h:60},{x:440,y:240,w:80,h:60}];
+  
+  document.getElementById('weapon-name').textContent=w.name;
   updateAmmo();
   
   window.onkeydown=e=>keys[e.code]=true;
@@ -86,7 +144,7 @@ function startGame(){
   canvas.onmousedown=e=>{
     if(!gameActive||!player.alive||player.reloading)return;
     const now=Date.now();
-    if(now-player.lastShot<SHOT_COOLDOWN)return;
+    if(now-player.lastShot<w.fireRate)return;
     if(player.ammo<=0){
       startReload();
       return;
@@ -99,8 +157,8 @@ function startGame(){
     const mx=(e.clientX-r.left)*(canvas.width/r.width);
     const my=(e.clientY-r.top)*(canvas.height/r.height);
     const a=Math.atan2(my-player.y,mx-player.x);
-    const spread=(Math.random()-0.5)*0.28;
-    bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*BSPD,dy:Math.sin(a+spread)*BSPD,life:80});
+    const spread=(Math.random()-0.5)*w.spread;
+    bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*BSPD,dy:Math.sin(a+spread)*BSPD,life:80,damage:w.damage});
     
     if(player.ammo<=0)startReload();
   };
@@ -109,25 +167,32 @@ function startGame(){
 }
 
 function startReload(){
+  const w=WEAPONS[player.weapon];
   player.reloading=true;
-  player.reloadEnd=Date.now()+RELOAD_TIME;
+  player.reloadEnd=Date.now()+w.reloadTime;
   document.getElementById('reload-msg').style.display='block';
   setTimeout(()=>{
     if(gameActive&&player.alive){
-      player.ammo=MAX_AMMO;
+      player.ammo=w.maxAmmo;
       player.reloading=false;
       document.getElementById('reload-msg').style.display='none';
       updateAmmo();
     }
-  },RELOAD_TIME);
+  },w.reloadTime);
 }
 
 function updateAmmo(){
+  const w=WEAPONS[player.weapon];
   const bar=document.getElementById('ammo-bar');
   bar.innerHTML='';
-  for(let i=0;i<MAX_AMMO;i++){
+  const displayCount=Math.min(w.maxAmmo,20);
+  for(let i=0;i<displayCount;i++){
     const pip=document.createElement('div');
     pip.className='ammo-pip'+(i<player.ammo?'':' empty');
+    if(w.maxAmmo>20){
+      pip.style.width='6px';
+      pip.style.height='6px';
+    }
     bar.appendChild(pip);
   }
 }
@@ -162,10 +227,10 @@ function botAI(){
     }
   }
   else if(canSee(enemy.x,enemy.y,player.x,player.y)){
-    if(Date.now()-enemy.lastShot>SHOT_COOLDOWN*0.7){
+    if(Date.now()-enemy.lastShot>2000*0.7){
       enemy.lastShot=Date.now();
       const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.02});
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.01,damage:50});
     }
     
     if(enemy.moveTimer<=0){
@@ -221,8 +286,10 @@ function botAI(){
 function gameLoop(){
   if(!gameActive){requestAnimationFrame(gameLoop);return}
   
+  const w=WEAPONS[player.weapon];
+  
   if(player.reloading&&Date.now()>player.reloadEnd){
-    player.ammo=MAX_AMMO;
+    player.ammo=w.maxAmmo;
     player.reloading=false;
     document.getElementById('reload-msg').style.display='none';
     updateAmmo();
@@ -261,8 +328,9 @@ function gameLoop(){
       const t=b.enemy?player:enemy;
       if(t.alive&&Math.abs(b.x-t.x)<14&&Math.abs(b.y-t.y)<14){
         rem=true;
+        const dmg=b.damage||50;
         if(b.enemy){
-          player.hp-=DMG;
+          player.hp-=dmg;
           if(player.hp<=0){
             player.alive=false;
             scoreC++;
@@ -274,7 +342,7 @@ function gameLoop(){
             checkWin();
           }
         }else{
-          enemy.hp-=DMG;
+          enemy.hp-=dmg;
           if(enemy.hp<=0){
             enemy.alive=false;
             scoreH++;
@@ -300,7 +368,7 @@ function gameLoop(){
   ctx.fillStyle='#1a1a2e';
   obstacles.forEach(o=>{ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle='#333';ctx.strokeRect(o.x,o.y,o.w,o.h)});
   
-  bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':'#ff0';ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
+  bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':(b.damage===50?'#ff0':'#f0f');ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
   
   if(player.alive){
     ctx.fillStyle='#0f0';
