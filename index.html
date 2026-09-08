@@ -71,6 +71,7 @@ canvas{display:block;width:100%;height:100%}
 <div class="map-select">
 <button class="map-btn" onclick="selectMap('forest')">ЛЕС</button>
 <button class="map-btn" onclick="selectMap('corridor')">КОРИДОР</button>
+<button class="map-btn" onclick="selectMap('rooms')">КОМНАТЫ</button>
 <button class="map-btn" onclick="selectMap('random')">🎲 СЛУЧАЙНО</button>
 </div>
 <div class="map-desc" id="mapDesc">
@@ -195,6 +196,24 @@ const MAPS={
       {x:0.75,y:0,w:0.1,h:0.3},
       {x:0.75,y:0.7,w:0.1,h:0.3},
       {x:0.35,y:0.45,w:0.3,h:0.1}
+    ]
+  },
+  rooms:{
+    name:'КОМНАТЫ',
+    desc:'Домность',
+    color:'#3a3a2a',
+    obstacleColor:'#5a5a3d',
+    obstacleBorder:'#7a7a4d',
+    spawnPlayer:{x:0.08,y:0.5},
+    spawnEnemy:{x:0.92,y:0.5},
+    obstacles:[
+      {x:0.3,y:0.15,w:0.4,h:0.08},
+      {x:0.3,y:0.77,w:0.4,h:0.08},
+      {x:0.3,y:0.15,w:0.08,h:0.7},
+      {x:0.62,y:0.15,w:0.08,h:0.7},
+      {x:0.46,y:0.42,w:0.08,h:0.16},
+      {x:0.15,y:0.35,w:0.1,h:0.3},
+      {x:0.75,y:0.35,w:0.1,h:0.3}
     ]
   }
 };
