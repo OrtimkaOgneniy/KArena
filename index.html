@@ -13,9 +13,14 @@ canvas{display:block;width:100%;height:100%}
 .score-box{background:rgba(0,0,0,.8);border:2px solid #0f0;color:#0f0;padding:10px 24px;font-size:24px;font-weight:bold;min-width:120px;text-align:center}
 .score-box.red{border-color:#f00;color:#f00}
 .score-label{font-size:12px;display:block;margin-top:4px;opacity:.7}
-#hp-bar{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);width:300px;height:24px;background:#111;border:2px solid #0f0}
-#hp-fill{height:100%;background:#0f0;transition:width .2s}
-#hp-text{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);color:#0f0;font-size:16px;font-weight:bold}
+#hp-container{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:400px;display:flex;flex-direction:column;gap:8px}
+.hp-row{display:flex;align-items:center;gap:10px}
+.hp-label{color:#fff;font-size:14px;font-weight:bold;width:60px}
+.hp-bar{flex:1;height:20px;background:#111;border:2px solid #0f0;position:relative}
+.hp-fill{height:100%;transition:width .2s}
+.hp-fill.green{background:#0f0;border:none}
+.hp-fill.red{background:#f00;border-color:#f00}
+.hp-text{color:#fff;font-size:14px;font-weight:bold;width:50px;text-align:right}
 #start-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.95);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:20}
 #start-title{font-size:64px;color:#0f0;margin-bottom:40px;text-shadow:0 0 20px #0f0}
 .weapon-select{display:flex;gap:30px;margin-bottom:30px}
@@ -29,10 +34,10 @@ canvas{display:block;width:100%;height:100%}
 #final-title{font-size:48px;font-weight:bold;margin-bottom:30px}
 #final-score{font-size:28px;color:#fff;margin-bottom:40px}
 #btn-restart{background:#0f0;color:#000;border:none;padding:20px 50px;font-size:22px;font-weight:bold;cursor:pointer;font-family:monospace}
-#ammo-bar{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
-.ammo-pip{width:16px;height:16px;background:#0f0;border:2px solid #0f0}
+#ammo-bar{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);display:flex;gap:4px}
+.ammo-pip{width:10px;height:10px;background:#0f0;border:1px solid #0f0}
 .ammo-pip.empty{background:#333;border-color:#333}
-#reload-msg{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);color:#fa0;font-size:18px;font-weight:bold;display:none}
+#reload-msg{position:absolute;bottom:130px;left:50%;transform:translateX(-50%);color:#fa0;font-size:16px;font-weight:bold;display:none}
 #weapon-name{position:absolute;top:20px;right:20px;color:#0f0;font-size:18px;font-weight:bold}
 #weapon-hint{position:absolute;bottom:20px;right:20px;color:#888;font-size:12px}
 #scope-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle,transparent 200px,rgba(0,0,0,.9) 500px);pointer-events:none;display:none;z-index:15}
@@ -58,8 +63,18 @@ canvas{display:block;width:100%;height:100%}
 <div class="score-box" id="score-host">0<span class="score-label">ТЫ</span></div>
 <div class="score-box red" id="score-client">0<span class="score-label">БОТ</span></div>
 </div>
-<div id="hp-bar"><div id="hp-fill" style="width:100%"></div></div>
-<div id="hp-text">100 / 100</div>
+<div id="hp-container">
+<div class="hp-row">
+<div class="hp-label" style="color:#0f0">ТЫ</div>
+<div class="hp-bar"><div class="hp-fill green" id="hp-fill-player" style="width:100%"></div></div>
+<div class="hp-text" id="hp-text-player">100</div>
+</div>
+<div class="hp-row">
+<div class="hp-label" style="color:#f00">БОТ</div>
+<div class="hp-bar"><div class="hp-fill red" id="hp-fill-enemy" style="width:100%"></div></div>
+<div class="hp-text" id="hp-text-enemy">100</div>
+</div>
+</div>
 <div id="ammo-bar"></div>
 <div id="reload-msg">ПЕРЕЗАРЯДКА...</div>
 <div id="weapon-name"></div>
@@ -98,11 +113,11 @@ const WEAPONS={
   },
   smg:{
     name:'ПП',
-    damage:15,
-    maxAmmo:50,
+    damage:6,
+    maxAmmo:70,
     reloadTime:5000,
-    fireRate:500,
-    spread:0.2,
+    fireRate:100,
+    spread:0.15,
     color:'#f0f'
   }
 };
@@ -120,7 +135,7 @@ function selectWeapon(weapon){
   const w=WEAPONS[weapon];
   const info=weapon==='sniper'
     ?'🎯 Урон: 50 | Патроны: 3 | Скорострельность: 2 сек<br>🔭 ПКМ: прицел (70 урона, 3x скорость пули, -50% скорости)'
-    :'🔫 Урон: 15 | Патроны: 50 | Скорострельность: 0.5 сек<br>📈 Есть разброс, высокая скорострельность';
+    :'🔫 Урон: 6 | Патроны: 70 | Скорострельность: 10/сек<br>📈 Есть разброс, высокая скорострельность';
   document.getElementById('weaponInfo').innerHTML=info;
 }
 
@@ -206,6 +221,7 @@ function startGame(){
   
   document.getElementById('weapon-name').textContent=w.name;
   updateAmmo();
+  updateHP();
   
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
@@ -258,16 +274,25 @@ function updateAmmo(){
   const w=WEAPONS[player.weapon];
   const bar=document.getElementById('ammo-bar');
   bar.innerHTML='';
-  const displayCount=Math.min(w.maxAmmo,20);
+  const displayCount=Math.min(w.maxAmmo,30);
   for(let i=0;i<displayCount;i++){
     const pip=document.createElement('div');
     pip.className='ammo-pip'+(i<player.ammo?'':' empty');
     if(w.maxAmmo>20){
-      pip.style.width='8px';
-      pip.style.height='8px';
+      pip.style.width='6px';
+      pip.style.height='6px';
     }
     bar.appendChild(pip);
   }
+}
+
+function updateHP(){
+  const playerPct=Math.max(0,player.hp)/MAX_HP*100;
+  const enemyPct=Math.max(0,enemy.hp)/MAX_HP*100;
+  document.getElementById('hp-fill-player').style.width=playerPct+'%';
+  document.getElementById('hp-text-player').textContent=Math.max(0,player.hp);
+  document.getElementById('hp-fill-enemy').style.width=enemyPct+'%';
+  document.getElementById('hp-text-enemy').textContent=Math.max(0,enemy.hp);
 }
 
 function hitObs(x,y,r){
@@ -406,22 +431,20 @@ function gameLoop(){
   
   bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':(b.damage>=70?'#f00':b.damage===50?'#ff0':'#f0f');ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
   
+  // Игрок - кружок
   if(player.alive){
     ctx.fillStyle='#0f0';
-    ctx.fillRect(player.x-12,player.y-12,24,24);
-    ctx.fillStyle='#fff';
-    ctx.font='12px monospace';
-    ctx.textAlign='center';
-    ctx.fillText(Math.max(0,player.hp),player.x,player.y-18);
+    ctx.beginPath();
+    ctx.arc(player.x,player.y,14,0,Math.PI*2);
+    ctx.fill();
   }
   
+  // Бот - кружок
   if(enemy.alive){
     ctx.fillStyle='#f00';
-    ctx.fillRect(enemy.x-12,enemy.y-12,24,24);
-    ctx.fillStyle='#fff';
-    ctx.font='12px monospace';
-    ctx.textAlign='center';
-    ctx.fillText(Math.max(0,enemy.hp),enemy.x,enemy.y-18);
+    ctx.beginPath();
+    ctx.arc(enemy.x,enemy.y,14,0,Math.PI*2);
+    ctx.fill();
   }
   
   for(let i=bullets.length-1;i>=0;i--){
@@ -469,14 +492,13 @@ function gameLoop(){
             checkWin();
           }
         }
+        updateHP();
       }
     }
     if(rem)bullets.splice(i,1);
   }
   
-  document.getElementById('hp-fill').style.width=Math.max(0,player.hp)+'%';
-  document.getElementById('hp-fill').style.background=player.hp>50?'#0f0':player.hp>25?'#fa0':'#f00';
-  document.getElementById('hp-text').textContent=Math.max(0,player.hp)+' / '+MAX_HP;
+  updateHP();
   
   document.getElementById('score-host').innerHTML=scoreH+'<span class="score-label">ТЫ</span>';
   document.getElementById('score-client').innerHTML=scoreC+'<span class="score-label">БОТ</span>';
