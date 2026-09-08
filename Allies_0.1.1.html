@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>KArena P2P</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}
+#game-container{position:relative;width:960px;height:540px;background:#000;font-family:monospace;overflow:hidden;border:2px solid #0f0;flex-shrink:0}
+canvas{display:block;width:100%;height:100%}
+#ui{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.95);padding:15px;border:1px solid #0f0;color:#0f0;width:300px;z-index:10}
+textarea{width:100%;height:50px;background:#000;color:#0f0;border:1px solid #0f0;font-size:10px;margin:5px 0;resize:none;font-family:monospace}
+button{background:#000;color:#0f0;border:1px solid #0f0;padding:10px;width:100%;cursor:pointer;font-weight:bold;margin:5px 0;font-family:monospace;font-size:12px}
+button:hover{background:#0f0;color:#000}
+button:disabled{border-color:#333;color:#333;cursor:default}
+.step{border:1px dashed #0f0;padding:8px;margin-bottom:6px}
+#status{font-weight:bold;text-align:center;margin-bottom:8px;background:#222;padding:5px;font-size:12px;text-transform:uppercase}
+#hud{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:5;display:none}
+#scoreboard{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:20px;align-items:center}
+.score-box{background:rgba(0,0,0,.8);border:1px solid #0f0;color:#0f0;padding:6px 16px;font-size:18px;font-weight:bold;text-align:center;min-width:80px}
+.score-box.red{border-color:#f00;color:#f00}
+.score-label{font-size:9px;display:block;margin-top:2px;opacity:.7}
+#hp-bar{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);width:220px;height:18px;background:#111;border:1px solid #0f0}
+#hp-fill{height:100%;background:#0f0;transition:width .2s}
+#hp-text{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#0f0;font-size:11px;font-weight:bold}
+#chat-box{position:absolute;bottom:40px;left:10px;width:280px;max-height:120px;overflow-y:auto;font-size:11px;color:#0f0;background:rgba(0,0,0,.6);padding:4px;display:none;z-index:6}
+#chat-input{position:absolute;bottom:10px;left:10px;width:280px;display:none;z-index:6;background:rgba(0,0,0,.9);border:1px solid #0f0;color:#0f0;font-family:monospace;font-size:12px;padding:4px}
+#final-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.92);display:none;flex-direction:column;justify-content:center;align-items:center;z-index:20}
+#final-title{font-size:36px;font-weight:bold;margin-bottom:20px;text-shadow:0 0 20px currentColor}
+#final-score{font-size:20px;color:#fff;margin-bottom:30px}
+#btn-restart{pointer-events:auto;width:200px;font-size:16px}
+#link-box{margin-top:10px;display:none}
+#link-box a{color:#8f8;font-size:11px;word-break:break-all}
+</style>
+</head>
+<body>
+<div id="game-container">
+<canvas id="gameCanvas"></canvas>
+<div id="ui">
+<div id="status">ВЫБЕРИТЕ РЕЖИМ</div>
+<div class="step">
+<button id="btnHost">СОЗДАТЬ ИГРУ</button>
+<div id="hostSection" style="display:none;margin-top:10px">
+<p style="margin:2px 0;font-size:10px">ОТПРАВЬ ССЫЛКУ ДРУГУ:</p>
+<div id="link-box"><a id="hostLink" href="#" target="_blank"></a></div>
+<p style="margin:2px 0;font-size:10px;color:#8f8">Жди подключения...</p>
+</div>
+</div>
+<div class="step" style="margin-top:10px">
+<button id="btnLocal">ЛОКАЛЬНАЯ ИГРА</button>
+</div>
+</div>
+<div id="hud">
+<div id="scoreboard">
+<div class="score-box" id="score-host">0<span class="score-label">ХОСТ</span></div>
+<div class="score-box red" id="score-client">0<span class="score-label">КЛИЕНТ</span></div>
+</div>
+<div id="hp-bar"><div id="hp-fill" style="width:100%"></div></div>
+<div id="hp-text">100 / 100</div>
+</div>
+<div id="chat-box"></div>
+<input id="chat-input" maxlength="80" placeholder="Сообщение... (Enter — отправить)">
+<div id="final-screen">
+<div id="final-title"></div>
+<div id="final-score"></div>
+<button id="btn-restart">НАЧАТЬ ЗАНОВО</button>
+</div>
+</div>
+<script>
+let pc=null,dc=null,isHost=false,gameActive=false,localMode=false;
+const $=id=>document.getElementById(id),statusDiv=$('status');
+let player,enemy,keys={},bullets=[],obstacles=[],scoreH=0,scoreC=0,roundTimer=0,roundMsg='',audioCtx=null;
+const MAX_SCORE=5,MAX_HP=100,SPD=4,BSPD=8,BR=4,DMG=50,RESPAWN=1500,SHOT_COOLDOWN=2000;
+const canvas=$('gameCanvas'),ctx=canvas.getContext('2d');
+canvas.width=960;canvas.height=540;
+
+// Проверка: если в URL есть ?join= — мы клиент
+const urlParams=new URLSearchParams(window.location.search);
+const joinData=urlParams.get('join');
+
+function initAudio(){if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume()}
+function playLaser(){if(!audioCtx)return;const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sawtooth';o.frequency.setValueAtTime(880,t);o.frequency.exponentialRampToValueAtTime(110,t+.15);g.gain.setValueAtTime(.18,t);g.gain.exponentialRampToValueAtTime(.001,t+.18);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+.2)}
+function playHit(){if(!audioCtx)return;const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='square';o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(55,t+.1);g.gain.setValueAtTime(.15,t);g.gain.exponentialRampToValueAtTime(.001,t+.12);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+.15)}
+
+// === ЛОКАЛЬНАЯ ИГРА ===
+$('btnLocal').addEventListener('click',()=>{
+  localMode=true;isHost=true;
+  $('btnHost').disabled=true;$('btnLocal').disabled=true;
+  statusDiv.innerText='ЛОКАЛЬНАЯ ИГРА';
+  initGame();
+  setInterval(()=>{
+    if(!gameActive||!enemy.alive)return;
+    if(enemy.x<player.x-20)enemy.x+=SPD*0.7;
+    if(enemy.x>player.x+20)enemy.x-=SPD*0.7;
+    if(enemy.y<player.y-20)enemy.y+=SPD*0.7;
+    if(enemy.y>player.y+20)enemy.y-=SPD*0.7;
+    if(Date.now()-enemy.lastShot>SHOT_COOLDOWN&&Math.abs(player.x-enemy.x)<300&&Math.abs(player.y-enemy.y)<300){
+      enemy.lastShot=Date.now();
+      const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,owner:'enemy',life:80});
+      playLaser();
+    }
+  },50);
+});
+
+// === ХОСТ ===
+$('btnHost').addEventListener('click',async()=>{
+  isHost=true;
+  $('btnHost').disabled=true;$('btnLocal').disabled=true;
+  $('hostSection').style.display='block';
+  statusDiv.innerText='ГЕНЕРАЦИЯ ССЫЛКИ...';
+  
+  pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  dc=pc.createDataChannel('game-sync');
+  setupDC(dc);
+  
+  pc.onicecandidate=e=>{
+    if(e.candidate||!pc.localDescription){
+      updateLink();
+    }
+  };
+  
+  pc.onconnectionstatechange=()=>{
+    if(pc.connectionState==='connected'){
+      statusDiv.innerText='ИГРОК ПОДКЛЮЧЁН!';
+      setTimeout(()=>{$('ui').style.display='none';initGame()},800);
+    }
+  };
+  
+  const offer=await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  updateLink();
+});
+
+function updateLink(){
+  const data=btoa(JSON.stringify(pc.localDescription));
+  const link=window.location.origin+window.location.pathname+'?join='+encodeURIComponent(data);
+  $('link-box').style.display='block';
+  $('hostLink').href=link;
+  $('hostLink').textContent='🔗 Открой эту ссылку (или отправь другу)';
+  $('hostLink').onclick=()=>{navigator.clipboard.writeText(link);alert('Ссылка скопирована!')};
+}
+
+// === КЛИЕНТ (если в URL есть ?join=) ===
+if(joinData){
+  (async()=>{
+    isHost=false;
+    statusDiv.innerText='ПОДКЛЮЧЕНИЕ...';
+    
+    try{
+      const offerDesc=JSON.parse(atob(decodeURIComponent(joinData)));
+      pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+      
+      pc.ondatachannel=e=>{dc=e.channel;setupDC(dc)};
+      
+      pc.onicecandidate=e=>{
+        if(e.candidate){
+          // ICE кандидаты не передаём обратно (упрощённый режим)
+        }
+      };
+      
+      pc.onconnectionstatechange=()=>{
+        if(pc.connectionState==='connected'){
+          statusDiv.innerText='СВЯЗЬ УСТАНОВЛЕНА!';
+          setTimeout(()=>{$('ui').style.display='none';initGame()},800);
+        }
+      };
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(offerDesc));
+      const answer=await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      // Ответ не передаём обратно (работаем в упрощённом режиме)
+    }catch(e){
+      statusDiv.innerText='ОШИБКА: '+e.message;
+      alert('Неверная ссылка!');
+    }
+  })();
+}
+
+// === ОБЩЕЕ ===
+$('btn-restart').addEventListener('click',()=>{
+  if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'restart'}));
+  doRestart()
+});
+
+function setupDC(ch){
+  ch.onopen=()=>{
+    statusDiv.innerText='СВЯЗЬ УСТАНОВЛЕНА';
+    setTimeout(()=>{$('ui').style.display='none';initGame()},800)
+  };
+  ch.onmessage=e=>{
+    const d=JSON.parse(e.data);
+    if(d.type==='move'){enemy.x=d.x;enemy.y=d.y}
+    else if(d.type==='shoot'){bullets.push({x:d.x,y:d.y,dx:d.dx,dy:d.dy,owner:'enemy',life:80});playLaser()}
+    else if(d.type==='hit'){player.hp=d.hp;if(player.hp<=0)onDeath('enemy')}
+    else if(d.type==='respawn'){enemy.x=d.x;enemy.y=d.y;enemy.hp=MAX_HP;enemy.alive=true}
+    else if(d.type==='score'){scoreH=d.h;scoreC=d.c;updateScoreboard();if(scoreH>=MAX_SCORE||scoreC>=MAX_SCORE)endGame()}
+    else if(d.type==='chat'){addChat(d.msg,false)}
+    else if(d.type==='restart'){doRestart()}
+    else if(d.type==='death'){
+      if(isHost){
+        if(d.killerIsHost){scoreH++;roundMsg='ТЫ УБИЛ ВРАГА!'}
+        else{scoreC++;roundMsg='ВРАГ УБИЛ ТЕБЯ'}
+        updateScoreboard();
+        if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'score',h:scoreH,c:scoreC}));
+        if(scoreH>=MAX_SCORE||scoreC>=MAX_SCORE){endGame();return}
+      }
+    }
+  }
+}
+
+function initGame(){
+  initAudio();
+  player={x:isHost?200:760,y:270,hp:MAX_HP,alive:true,color:isHost?'#0f0':'#f00',lastShot:0};
+  enemy={x:isHost?760:200,y:270,hp:MAX_HP,alive:true,color:isHost?'#f00':'#0f0',lastShot:0};
+  obstacles=[{x:280,y:100,w:80,h:60},{x:600,y:100,w:80,h:60},{x:280,y:380,w:80,h:60},{x:600,y:380,w:80,h:60},{x:440,y:240,w:80,h:60}];
+  gameActive=true;
+  $('hud').style.display='block';
+  
+  window.addEventListener('keydown',e=>{
+    if(e.code==='Slash'){e.preventDefault();if(!chatOpen){chatOpen=true;$('chat-input').style.display='block';$('chat-box').style.display='block';$('chat-input').focus()}return}
+    keys[e.code]=true;if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault()
+  });
+  window.addEventListener('keyup',e=>keys[e.code]=false);
+  
+  canvas.addEventListener('mousedown',e=>{
+    if(!gameActive||!player.alive)return;
+    const now=Date.now();if(now-player.lastShot<SHOT_COOLDOWN)return;player.lastShot=now;
+    initAudio();
+    const r=canvas.getBoundingClientRect(),mx=(e.clientX-r.left)*(canvas.width/r.width),my=(e.clientY-r.top)*(canvas.height/r.height),a=Math.atan2(my-player.y,mx-player.x);
+    bullets.push({x:player.x,y:player.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,owner:'me',life:80});
+    playLaser();
+    if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'shoot',x:player.x,y:player.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD}))
+  });
+  
+  let chatOpen=false;
+  $('chat-input').addEventListener('keydown',e=>{
+    e.stopPropagation();
+    if(e.key==='Enter'){const m=$('chat-input').value.trim();if(m){addChat(m,true);if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'chat',msg:m}))}$('chat-input').value='';$('chat-input').style.display='none';chatOpen=false;setTimeout(()=>{if(!chatOpen)$('chat-box').style.display='none'},3000)}
+    if(e.key==='Escape'){$('chat-input').value='';$('chat-input').style.display='none';chatOpen=false}
+  });
+  
+  gameLoop()
+}
+
+function addChat(msg,mine){const b=$('chat-box'),d=document.createElement('div');d.style.color=mine?'#8f8':'#0f0';d.textContent=(mine?(isHost?'[ХОСТ] ':'[КЛИЕНТ] '):(isHost?'[КЛИЕНТ] ':'[ХОСТ] '))+msg;b.appendChild(d);b.scrollTop=b.scrollHeight;while(b.children.length>8)b.removeChild(b.firstChild)}
+function updateScoreboard(){$('score-host').innerHTML=scoreH+'<span class="score-label">ХОСТ</span>';$('score-client').innerHTML=scoreC+'<span class="score-label">КЛИЕНТ</span>'}
+
+function onDeath(killer){player.alive=false;player.hp=0;const killerIsMe=killer==='me';if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'death',killerIsHost:isHost?killerIsMe:!killerIsMe}));roundMsg=killerIsMe?'ТЫ УБИЛ ВРАГА!':'ТЫ ПОГИБ';roundTimer=RESPAWN;setTimeout(()=>{if(!gameActive)return;player.x=isHost?200:760;player.y=270;player.hp=MAX_HP;player.alive=true;if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'respawn',x:enemy.x,y:enemy.y}))},RESPAWN)}
+
+function endGame(){gameActive=false;const w=scoreH>=MAX_SCORE;$('final-title').textContent=isHost?(w?'ТЫ ПОБЕДИЛ!':'ТЫ ПРОИГРАЛ'):(w?'ХОСТ ПОБЕДИЛ':'КЛИЕНТ ПОБЕДИЛ');$('final-title').style.color=w?'#0f0':'#f00';$('final-score').textContent='ХОСТ '+scoreH+' : '+scoreC+' КЛИЕНТ';$('final-screen').style.display='flex'}
+function doRestart(){scoreH=0;scoreC=0;bullets=[];updateScoreboard();player.x=isHost?200:760;player.y=270;player.hp=MAX_HP;player.alive=true;enemy.hp=MAX_HP;enemy.alive=true;$('final-screen').style.display='none';gameActive=true}
+function hitObs(x,y,r){return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h)}
+
+function gameLoop(){
+  if(!gameActive){requestAnimationFrame(gameLoop);return}
+  if(player.alive){let nx=player.x,ny=player.y;if(keys['KeyW']||keys['ArrowUp'])ny-=SPD;if(keys['KeyS']||keys['ArrowDown'])ny+=SPD;if(keys['KeyA']||keys['ArrowLeft'])nx-=SPD;if(keys['KeyD']||keys['ArrowRight'])nx+=SPD;nx=Math.max(12,Math.min(canvas.width-12,nx));ny=Math.max(12,Math.min(canvas.height-12,ny));if(!hitObs(nx,player.y,10))player.x=nx;if(!hitObs(player.x,ny,10))player.y=ny;if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'move',x:player.x,y:player.y}))}
+  for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.x+=b.dx;b.y+=b.dy;b.life--;let rem=b.life<=0||b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height||hitObs(b.x,b.y,BR);if(!rem){const t=b.owner==='me'?enemy:player;if(t.alive&&Math.abs(b.x-t.x)<14&&Math.abs(b.y-t.y)<14){rem=true;if(b.owner==='me'){enemy.hp-=DMG;playHit();if(enemy.hp<=0){enemy.alive=false;onDeath('me')}if(dc&&dc.readyState==='open')dc.send(JSON.stringify({type:'hit',hp:Math.max(0,enemy.hp)}))}}if(rem)bullets.splice(i,1)}
+  ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#111';for(let i=0;i<canvas.width;i+=24){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke()}for(let j=0;j<canvas.height;j+=24){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(canvas.width,j);ctx.stroke()}
+  ctx.fillStyle='#1a1a2e';obstacles.forEach(o=>{ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle='#333';ctx.strokeRect(o.x,o.y,o.w,o.h)});
+  bullets.forEach(b=>{ctx.fillStyle=b.owner==='me'?'#ff0':'#f0f';ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
+  if(enemy.alive){ctx.fillStyle=enemy.color;ctx.fillRect(enemy.x-10,enemy.y-10,20,20);ctx.fillStyle='#fff';ctx.font='10px monospace';ctx.textAlign='center';ctx.fillText(Math.max(0,enemy.hp),enemy.x,enemy.y-16)}
+  if(player.alive){ctx.fillStyle=player.color;ctx.fillRect(player.x-10,player.y-10,20,20);ctx.fillStyle='#fff';ctx.font='10px monospace';ctx.textAlign='center';ctx.fillText(Math.max(0,player.hp),player.x,player.y-16)}
+  $('hp-fill').style.width=Math.max(0,player.hp)+'%';$('hp-fill').style.background=player.hp>50?'#0f0':player.hp>25?'#fa0':'#f00';$('hp-text').textContent=Math.max(0,player.hp)+' / '+MAX_HP;
+  if(roundTimer>0){roundTimer-=16;ctx.fillStyle='#ff0';ctx.font='bold 24px monospace';ctx.textAlign='center';ctx.fillText(roundMsg,canvas.width/2,canvas.height/2-40)}
+  requestAnimationFrame(gameLoop)
+}
+</script>
+</body>
+</html>
