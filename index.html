@@ -34,6 +34,7 @@ canvas{display:block;width:100%;height:100%}
 .ammo-pip.empty{background:#333;border-color:#333}
 #reload-msg{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);color:#fa0;font-size:14px;font-weight:bold;display:none}
 #weapon-name{position:absolute;top:10px;right:10px;color:#0f0;font-size:14px;font-weight:bold}
+#weapon-hint{position:absolute;bottom:10px;right:10px;color:#888;font-size:10px}
 </style>
 </head>
 <body>
@@ -60,6 +61,7 @@ canvas{display:block;width:100%;height:100%}
 <div id="ammo-bar"></div>
 <div id="reload-msg">ПЕРЕЗАРЯДКА...</div>
 <div id="weapon-name"></div>
+<div id="weapon-hint">Колёсико — смена оружия</div>
 </div>
 <div id="final-screen">
 <div id="final-title"></div>
@@ -96,6 +98,8 @@ const WEAPONS={
   }
 };
 
+const WEAPON_ORDER=['sniper','smg'];
+
 const MAX_SCORE=5,MAX_HP=100,SPD=3,BSPD=8,BR=4;
 
 function selectWeapon(weapon){
@@ -110,6 +114,27 @@ function selectWeapon(weapon){
     :'🔫 Урон: 15 | Патроны: 50 | Скорострельность: 0.5 сек<br>📈 Есть разброс, высокая скорострельность';
   document.getElementById('weaponInfo').innerHTML=info;
 }
+
+function switchWeapon(){
+  if(!gameActive||!player.alive)return;
+  const idx=WEAPON_ORDER.indexOf(player.weapon);
+  const nextIdx=(idx+1)%WEAPON_ORDER.length;
+  const nextWeapon=WEAPON_ORDER[nextIdx];
+  
+  player.weapon=nextWeapon;
+  const w=WEAPONS[nextWeapon];
+  player.ammo=w.maxAmmo;
+  player.reloading=false;
+  document.getElementById('reload-msg').style.display='none';
+  document.getElementById('weapon-name').textContent=w.name;
+  updateAmmo();
+}
+
+// Смена оружия колёсиком
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  switchWeapon();
+});
 
 document.getElementById('start-btn').onclick=()=>{
   if(!selectedWeapon)return;
@@ -132,7 +157,16 @@ function startGame(){
     lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,
     weapon:selectedWeapon
   };
-  enemy={x:760,y:270,hp:MAX_HP,alive:true,lastShot:0,tx:760,ty:270,moveTimer:0};
+  
+  // Бот с усиленным ПП
+  enemy={
+    x:760,y:270,hp:MAX_HP,alive:true,
+    lastShot:0,tx:760,ty:270,moveTimer:0,
+    weapon:'smg+',
+    damage:20,
+    fireRate:400
+  };
+  
   obstacles=[{x:280,y:100,w:80,h:60},{x:600,y:100,w:80,h:60},{x:280,y:380,w:80,h:60},{x:600,y:380,w:80,h:60},{x:440,y:240,w:80,h:60}];
   
   document.getElementById('weapon-name').textContent=w.name;
@@ -227,10 +261,10 @@ function botAI(){
     }
   }
   else if(canSee(enemy.x,enemy.y,player.x,player.y)){
-    if(Date.now()-enemy.lastShot>2000*0.7){
+    if(Date.now()-enemy.lastShot>enemy.fireRate*0.7){
       enemy.lastShot=Date.now();
       const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.01,damage:50});
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:80,enemy:true,homing:0.01,damage:enemy.damage});
     }
     
     if(enemy.moveTimer<=0){
