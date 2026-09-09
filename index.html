@@ -132,7 +132,6 @@ const MAPS={
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
-let lastPlayerX, lastPlayerY, lastLastPlayerX, lastLastPlayerY;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -211,8 +210,6 @@ function startGame(){
   const cw=canvas.width,ch=canvas.height;
   obstacles=map.obstacles.map(o=>({x:o.x*cw,y:o.y*ch,w:o.w*cw,h:o.h*ch}));
   document.getElementById('weapon-name').textContent=w.name;
-  lastPlayerX=player.x;lastPlayerY=player.y;
-  lastLastPlayerX=player.x;lastLastPlayerY=player.y;
   updateAmmo();updateHP();
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
@@ -274,18 +271,19 @@ function botAI(){
   
   const dx=player.x-enemy.x,dy=player.y-enemy.y,dist=Math.sqrt(dx*dx+dy*dy);
   
-  // Предсказание с усреднением
-  const velX=(player.x-lastPlayerX);
-  const velY=(player.y-lastPlayerY);
-  const avgVelX=(velX+(lastPlayerX-lastLastPlayerX))/2;
-  const avgVelY=(velY+(lastPlayerY-lastLastPlayerY))/2;
+  // Минимальное предсказание - только куда ты сейчас идёшь
+  const velX=(player.x-(player.lastX||player.x));
+  const velY=(player.y-(player.lastY||player.y));
   
-  const flightTime=dist/BSPD;
-  const predictX=player.x+avgVelX*flightTime*8;
-  const predictY=player.y+avgVelY*flightTime*8;
+  // Ограничиваем скорость игрока (не больше 10 пикселей за кадр)
+  const clampedVelX=Math.max(-10,Math.min(10,velX));
+  const clampedVelY=Math.max(-10,Math.min(10,velY));
   
-  lastLastPlayerX=lastPlayerX;lastLastPlayerY=lastPlayerY;
-  lastPlayerX=player.x;lastPlayerY=player.y;
+  // Маленькое упреждение
+  const predictX=player.x+clampedVelX*2;
+  const predictY=player.y+clampedVelY*2;
+  
+  player.lastX=player.x;player.lastY=player.y;
   
   if(enemy.hp<20){
     const cornerX=enemy.x<canvas.width/2?canvas.width*0.05:canvas.width*0.95;
