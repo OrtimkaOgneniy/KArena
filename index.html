@@ -117,12 +117,8 @@ canvas{display:block;width:100%;height:100%}
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 
-function resizeCanvas(){
-  canvas.width=window.innerWidth;
-  canvas.height=window.innerHeight;
-}
-resizeCanvas();
-window.addEventListener('resize',resizeCanvas);
+function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+resizeCanvas();window.addEventListener('resize',resizeCanvas);
 
 let gameActive=false,player,enemy,keys={},bullets=[],obstacles=[],scoreH=0,scoreC=0;
 let selectedWeapon=null,selectedMap=null,aiming=false,mouseX=0,mouseY=0;
@@ -133,7 +129,6 @@ const WEAPONS={
   smg:{name:'ПП',damage:6,maxAmmo:70,reloadTime:5000,fireRate:100,spread:0.08,recoilPerShot:0.8,maxRecoil:15,color:'#f0f'},
   shotgun:{name:'ДРОБОВИК',damage:3,maxAmmo:10,reloadTime:5000,fireRate:3000,spread:0.6,pellets:20,recoilPerShot:0,maxRecoil:0,color:'#fa0'}
 };
-
 const WEAPON_ORDER=['sniper','smg','shotgun'];
 
 const MAPS={
@@ -143,11 +138,7 @@ const MAPS={
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
-
-let playerHistory=[];
-let velocityHistory=[];
-let accelX=0,accelY=0;
-let lastVelX=0,lastVelY=0;
+let playerHistory=[],velocityHistory=[],accelX=0,accelY=0,lastVelX=0,lastVelY=0;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -293,14 +284,11 @@ function botAI(){
   
   const dx=player.x-enemy.x,dy=player.y-enemy.y,dist=Math.sqrt(dx*dx+dy*dy);
   
-  // Умное предсказание с физикой
+  // Умное предсказание
   if(player.alive){
     const velX=player.x-player.lastX;
     const velY=player.y-player.lastY;
-    
-    // Считаем ускорение
-    accelX=velX-lastVelX;
-    accelY=velY-lastVelY;
+    accelX=velX-lastVelX;accelY=velY-lastVelY;
     lastVelX=velX;lastVelY=velY;
     
     velocityHistory.push({x:velX,y:velY,ax:accelX,ay:accelY});
@@ -316,32 +304,23 @@ function botAI(){
   let predictedVelX=0,predictedVelY=0;
   
   if(velocityHistory.length>=10){
-    // Средний вектор скорости
     const recent=velocityHistory.slice(-10);
     predictedVelX=recent.reduce((s,p)=>s+p.x,0)/10;
     predictedVelY=recent.reduce((s,p)=>s+p.y,0)/10;
     
-    // Добавляем ускорение
     const avgAccelX=recent.reduce((s,p)=>s+p.ax,0)/10;
     const avgAccelY=recent.reduce((s,p)=>s+p.ay,0)/10;
     
-    // Предсказываем скорость через время полёта пули
     const flightTime=dist/BSPD;
     predictedVelX+=avgAccelX*flightTime*30;
     predictedVelY+=avgAccelY*flightTime*30;
     
-    // Учитываем смену направления (если игрок меняет курс)
     let directionChanges=0;
     for(let i=1;i<recent.length;i++){
       if((recent[i].x>0)!=(recent[i-1].x>0))directionChanges++;
       if((recent[i].y>0)!=(recent[i-1].y>0))directionChanges++;
     }
-    
-    // Если много смен направления — уменьшаем предсказание
-    if(directionChanges>3){
-      predictedVelX*=0.5;
-      predictedVelY*=0.5;
-    }
+    if(directionChanges>3){predictedVelX*=0.5;predictedVelY*=0.5;}
   }
   
   const flightTime=dist/BSPD;
@@ -378,12 +357,12 @@ function botAI(){
     }
   }
   else if(hasLineOfSight){
-    if(Date.now()-enemy.lastShot>enemy.fireRate*0.5){
+    if(Date.now()-enemy.lastShot>enemy.fireRate*0.7){
       enemy.lastShot=Date.now();
       const leadX=enemy.predictX;
       const leadY=enemy.predictY;
       const a=Math.atan2(leadY-enemy.y,leadX-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.02,damage:enemy.damage});
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.01,damage:enemy.damage});
       const accuracy=Math.min(100,Math.round(50+velocityHistory.length*2));
       updateThoughts('🎯 ЦЕЛЮСЬ С УПРЕЖДЕНИЕМ\n📊 ТОЧНОСТЬ: '+accuracy+'%');
     }
