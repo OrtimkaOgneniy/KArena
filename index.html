@@ -173,7 +173,7 @@ const BIG_MAP={
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
 const DASH_DIST=180;
 const DASH_COOLDOWN=3000;
-const DASH_DURATION=180;
+const DASH_DURATION=45;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -256,7 +256,7 @@ function createDashParticles(x,y,dx,dy){
       life:20+Math.random()*10,
       maxLife:30,
       size:2+Math.random()*3,
-      color:`hsla(${120+Math.random()*40},100%,50%,${1})`
+      color:`hsla(${120+Math.random()*40},100%,50%,1)`
     });
   }
 }
@@ -289,7 +289,7 @@ function startGame(){
   aiming=false;
 
   const playerSpawn=findValidSpawn(true);
-  const enemySpawn=findValidSpawn(false);
+  let enemySpawn=findValidSpawn(false);
 
   player={
     x:playerSpawn.x,
@@ -334,6 +334,14 @@ function startGame(){
   };
 
   obstacles=BIG_MAP.obstacles.map(o=>({...o}));
+
+  if(hitObs(enemy.x,enemy.y,BOT_R+10)){
+    enemySpawn=findValidSpawn(false);
+    enemy.x=enemySpawn.x;
+    enemy.y=enemySpawn.y;
+    enemy.tx=enemySpawn.x;
+    enemy.ty=enemySpawn.y;
+  }
 
   document.getElementById('weapon-name').textContent=WEAPONS[player.weapon].name;
   updateAmmo();
@@ -515,8 +523,12 @@ function botMoveToward(tx,ty,speed){
       return;
     }
   }
-  enemy.tx=enemy.x+(Math.random()-.5)*300;
-  enemy.ty=enemy.y+(Math.random()-.5)*300;
+  const safeX=Math.max(BOT_R+15,Math.min(WORLD_W-BOT_R-15,enemy.x));
+  const safeY=Math.max(BOT_R+15,Math.min(WORLD_H-BOT_R-15,enemy.y));
+  enemy.x=safeX;
+  enemy.y=safeY;
+  enemy.tx=safeX+(Math.random()-.5)*200;
+  enemy.ty=safeY+(Math.random()-.5)*200;
 }
 
 function findCover(){
