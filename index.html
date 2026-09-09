@@ -129,106 +129,25 @@ let selectedWeapon=null,selectedMap=null,aiming=false,mouseX=0,mouseY=0;
 let mouseDown=false,recoil=0,currentMapName='';
 
 const WEAPONS={
-  sniper:{
-    name:'СНАЙПЕРКА',
-    damage:50,
-    scopedDamage:70,
-    maxAmmo:3,
-    reloadTime:5000,
-    fireRate:2000,
-    spread:0,
-    recoilPerShot:0,
-    maxRecoil:0,
-    color:'#ff0'
-  },
-  smg:{
-    name:'ПП',
-    damage:6,
-    maxAmmo:70,
-    reloadTime:5000,
-    fireRate:100,
-    spread:0.08,
-    recoilPerShot:0.8,
-    maxRecoil:15,
-    color:'#f0f'
-  },
-  shotgun:{
-    name:'ДРОБОВИК',
-    damage:3,
-    maxAmmo:10,
-    reloadTime:5000,
-    fireRate:3000,
-    spread:0.6,
-    pellets:20,
-    recoilPerShot:0,
-    maxRecoil:0,
-    color:'#fa0'
-  }
+  sniper:{name:'СНАЙПЕРКА',damage:50,scopedDamage:70,maxAmmo:3,reloadTime:5000,fireRate:2000,spread:0,recoilPerShot:0,maxRecoil:0,color:'#ff0'},
+  smg:{name:'ПП',damage:6,maxAmmo:70,reloadTime:5000,fireRate:100,spread:0.08,recoilPerShot:0.8,maxRecoil:15,color:'#f0f'},
+  shotgun:{name:'ДРОБОВИК',damage:3,maxAmmo:10,reloadTime:5000,fireRate:3000,spread:0.6,pellets:20,recoilPerShot:0,maxRecoil:0,color:'#fa0'}
 };
 
 const WEAPON_ORDER=['sniper','smg','shotgun'];
 
 const MAPS={
-  forest:{
-    name:'ЛЕС',
-    desc:'Открытая местность с редкими деревьями',
-    color:'#1a3a1a',
-    obstacleColor:'#2d5a2d',
-    obstacleBorder:'#3d7a3d',
-    spawnPlayer:{x:0.1,y:0.5},
-    spawnEnemy:{x:0.9,y:0.5},
-    obstacles:[
-      {x:0.25,y:0.2,w:0.06,h:0.25},
-      {x:0.7,y:0.2,w:0.06,h:0.25},
-      {x:0.25,y:0.55,w:0.06,h:0.25},
-      {x:0.7,y:0.55,w:0.06,h:0.25},
-      {x:0.45,y:0.4,w:0.1,h:0.2},
-      {x:0.5,y:0.15,w:0.05,h:0.05},
-      {x:0.3,y:0.7,w:0.05,h:0.05},
-      {x:0.65,y:0.75,w:0.05,h:0.05}
-    ]
-  },
-  corridor:{
-    name:'КОРИДОР',
-    desc:'Открытый центр + кармашки по бокам',
-    color:'#2a2a3a',
-    obstacleColor:'#3d3d5a',
-    obstacleBorder:'#4d4d7a',
-    spawnPlayer:{x:0.12,y:0.15},
-    spawnEnemy:{x:0.88,y:0.85},
-    obstacles:[
-      {x:0.15,y:0,w:0.1,h:0.3},
-      {x:0.15,y:0.7,w:0.1,h:0.3},
-      {x:0.75,y:0,w:0.1,h:0.3},
-      {x:0.75,y:0.7,w:0.1,h:0.3},
-      {x:0.35,y:0.45,w:0.3,h:0.1}
-    ]
-  },
-  rooms:{
-    name:'КОМНАТЫ',
-    desc:'Домность',
-    color:'#3a3a2a',
-    obstacleColor:'#5a5a3d',
-    obstacleBorder:'#7a7a4d',
-    spawnPlayer:{x:0.08,y:0.5},
-    spawnEnemy:{x:0.92,y:0.5},
-    obstacles:[
-      {x:0.3,y:0.15,w:0.4,h:0.08},
-      {x:0.3,y:0.77,w:0.4,h:0.08},
-      {x:0.3,y:0.15,w:0.08,h:0.7},
-      {x:0.62,y:0.15,w:0.08,h:0.7},
-      {x:0.46,y:0.42,w:0.08,h:0.16},
-      {x:0.15,y:0.35,w:0.1,h:0.3},
-      {x:0.75,y:0.35,w:0.1,h:0.3}
-    ]
-  }
+  forest:{name:'ЛЕС',desc:'Открытая местность с редкими деревьями',color:'#1a3a1a',obstacleColor:'#2d5a2d',obstacleBorder:'#3d7a3d',spawnPlayer:{x:0.1,y:0.5},spawnEnemy:{x:0.9,y:0.5},obstacles:[{x:0.25,y:0.2,w:0.06,h:0.25},{x:0.7,y:0.2,w:0.06,h:0.25},{x:0.25,y:0.55,w:0.06,h:0.25},{x:0.7,y:0.55,w:0.06,h:0.25},{x:0.45,y:0.4,w:0.1,h:0.2},{x:0.5,y:0.15,w:0.05,h:0.05},{x:0.3,y:0.7,w:0.05,h:0.05},{x:0.65,y:0.75,w:0.05,h:0.05}]},
+  corridor:{name:'КОРИДОР',desc:'Открытый центр + кармашки по бокам',color:'#2a2a3a',obstacleColor:'#3d3d5a',obstacleBorder:'#4d4d7a',spawnPlayer:{x:0.12,y:0.15},spawnEnemy:{x:0.88,y:0.85},obstacles:[{x:0.15,y:0,w:0.1,h:0.3},{x:0.15,y:0.7,w:0.1,h:0.3},{x:0.75,y:0,w:0.1,h:0.3},{x:0.75,y:0.7,w:0.1,h:0.3},{x:0.35,y:0.45,w:0.3,h:0.1}]},
+  rooms:{name:'КОМНАТЫ',desc:'Домность',color:'#3a3a2a',obstacleColor:'#5a5a3d',obstacleBorder:'#7a7a4d',spawnPlayer:{x:0.08,y:0.5},spawnEnemy:{x:0.92,y:0.5},obstacles:[{x:0.3,y:0.15,w:0.4,h:0.08},{x:0.3,y:0.77,w:0.4,h:0.08},{x:0.3,y:0.15,w:0.08,h:0.7},{x:0.62,y:0.15,w:0.08,h:0.7},{x:0.46,y:0.42,w:0.08,h:0.16},{x:0.15,y:0.35,w:0.1,h:0.3},{x:0.75,y:0.35,w:0.1,h:0.3}]}
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
 
 let playerHistory=[];
-let learningRate=0.3;
-let predictedDirX=0,predictedDirY=0;
+let velocityHistory=[];
+let accelX=0,accelY=0;
+let lastVelX=0,lastVelY=0;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -236,16 +155,11 @@ function selectWeapon(weapon){
   document.getElementById('btnSMG').classList.toggle('selected',weapon==='smg');
   document.getElementById('btnShotgun').classList.toggle('selected',weapon==='shotgun');
   document.getElementById('start-btn').disabled=false;
-  
   const w=WEAPONS[weapon];
   let info='';
-  if(weapon==='sniper'){
-    info='🎯 Урон: 50 | Патроны: 3 | Скорострельность: 2 сек<br>🔭 ПКМ: прицел (70 урона, 3x скорость пули, -50% скорости)';
-  }else if(weapon==='smg'){
-    info='🔫 Урон: 6 | Патроны: 70 | Скорострельность: 10/сек<br>📈 Отдача накапливается при зажиме';
-  }else if(weapon==='shotgun'){
-    info='💥 Дробовик: 20 пуль | Урон: 3 за пулю | Патроны: 10<br>⏱ Перезарядка: 3 сек | 🔀 Огромный разброс';
-  }
+  if(weapon==='sniper')info='🎯 Урон: 50 | Патроны: 3 | Скорострельность: 2 сек<br>🔭 ПКМ: прицел (70 урона, 3x скорость пули, -50% скорости)';
+  else if(weapon==='smg')info='🔫 Урон: 6 | Патроны: 70 | Скорострельность: 10/сек<br>📈 Отдача накапливается при зажиме';
+  else if(weapon==='shotgun')info='💥 Дробовик: 20 пуль | Урон: 3 за пулю | Патроны: 10<br>⏱ Перезарядка: 3 сек | 🔀 Огромный разброс';
   document.getElementById('weaponInfo').innerHTML=info;
 }
 
@@ -253,7 +167,6 @@ function selectMap(map){
   selectedMap=map;
   document.querySelectorAll('.map-btn').forEach(btn=>btn.classList.remove('selected'));
   event.target.classList.add('selected');
-  
   if(map==='random'){
     const keys=Object.keys(MAPS).filter(k=>k!=='random');
     selectedMap=keys[Math.floor(Math.random()*keys.length)];
@@ -264,23 +177,12 @@ function selectMap(map){
   document.getElementById('map-start-btn').disabled=false;
 }
 
-document.getElementById('start-btn').onclick=()=>{
-  if(!selectedWeapon)return;
-  document.getElementById('start-screen').style.display='none';
-  document.getElementById('map-select-screen').style.display='flex';
-};
-
-document.getElementById('map-start-btn').onclick=()=>{
-  if(!selectedMap)return;
-  document.getElementById('map-select-screen').style.display='none';
-  startGame();
-};
-
+document.getElementById('start-btn').onclick=()=>{if(!selectedWeapon)return;document.getElementById('start-screen').style.display='none';document.getElementById('map-select-screen').style.display='flex';};
+document.getElementById('map-start-btn').onclick=()=>{if(!selectedMap)return;document.getElementById('map-select-screen').style.display='none';startGame();};
 document.getElementById('btn-restart').onclick=()=>{
   document.getElementById('final-screen').style.display='none';
   document.getElementById('start-screen').style.display='flex';
-  selectedWeapon=null;
-  selectedMap=null;
+  selectedWeapon=null;selectedMap=null;
   document.getElementById('btnSniper').classList.remove('selected');
   document.getElementById('btnSMG').classList.remove('selected');
   document.getElementById('btnShotgun').classList.remove('selected');
@@ -289,290 +191,169 @@ document.getElementById('btn-restart').onclick=()=>{
   document.querySelectorAll('.map-btn').forEach(btn=>btn.classList.remove('selected'));
   document.getElementById('mapDesc').innerHTML='Нажми на карту чтобы выбрать';
   document.getElementById('map-start-btn').disabled=true;
-  playerHistory=[];
-  learningRate=0.3;
-  predictedDirX=0;
-  predictedDirY=0;
+  playerHistory=[];velocityHistory=[];accelX=0;accelY=0;lastVelX=0;lastVelY=0;
 };
 
 function switchWeapon(){
   if(!gameActive||!player.alive)return;
   const idx=WEAPON_ORDER.indexOf(player.weapon);
   const nextIdx=(idx+1)%WEAPON_ORDER.length;
-  const nextWeapon=WEAPON_ORDER[nextIdx];
-  
-  player.weapon=nextWeapon;
-  const w=WEAPONS[nextWeapon];
-  player.ammo=w.maxAmmo;
-  player.reloading=false;
-  recoil=0;
+  player.weapon=WEAPON_ORDER[nextIdx];
+  const w=WEAPONS[player.weapon];
+  player.ammo=w.maxAmmo;player.reloading=false;recoil=0;
   document.getElementById('reload-msg').style.display='none';
   document.getElementById('weapon-name').textContent=w.name;
   updateAmmo();
 }
 
-canvas.addEventListener('wheel',e=>{
-  e.preventDefault();
-  switchWeapon();
-});
-
-canvas.addEventListener('contextmenu',e=>{
-  e.preventDefault();
-  if(gameActive&&player.alive&&player.weapon==='sniper'){
-    aiming=true;
-    document.getElementById('scope-overlay').style.display='block';
-  }
-});
-
-canvas.addEventListener('mousemove',e=>{
-  const r=canvas.getBoundingClientRect();
-  mouseX=(e.clientX-r.left)*(canvas.width/r.width);
-  mouseY=(e.clientY-r.top)*(canvas.height/r.height);
-});
-
+canvas.addEventListener('wheel',e=>{e.preventDefault();switchWeapon();});
+canvas.addEventListener('contextmenu',e=>{e.preventDefault();if(gameActive&&player.alive&&player.weapon==='sniper'){aiming=true;document.getElementById('scope-overlay').style.display='block';}});
+canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mouseX=(e.clientX-r.left)*(canvas.width/r.width);mouseY=(e.clientY-r.top)*(canvas.height/r.height);});
 canvas.addEventListener('mousedown',e=>{
-  if(e.button===2){
-    if(gameActive&&player.alive&&player.weapon==='sniper'){
-      aiming=true;
-      document.getElementById('scope-overlay').style.display='block';
-    }
-    return;
-  }
-  if(e.button===0){
-    mouseDown=true;
-    if(gameActive&&player.alive&&player.weapon==='sniper'){
-      shoot();
-    }
-  }
+  if(e.button===2){if(gameActive&&player.alive&&player.weapon==='sniper'){aiming=true;document.getElementById('scope-overlay').style.display='block';}return;}
+  if(e.button===0){mouseDown=true;if(gameActive&&player.alive&&player.weapon==='sniper')shoot();}
 });
-
 document.addEventListener('mouseup',e=>{
-  if(e.button===0){
-    mouseDown=false;
-  }
-  if(e.button===2){
-    aiming=false;
-    document.getElementById('scope-overlay').style.display='none';
-  }
+  if(e.button===0)mouseDown=false;
+  if(e.button===2){aiming=false;document.getElementById('scope-overlay').style.display='none';}
 });
 
 function startGame(){
-  gameActive=true;
-  scoreH=0;scoreC=0;bullets=[];
-  recoil=0;
-  mouseDown=false;
-  aiming=false;
-  playerHistory=[];
-  learningRate=0.3;
-  predictedDirX=0;
-  predictedDirY=0;
-  
-  const w=WEAPONS[selectedWeapon];
-  const map=MAPS[selectedMap];
-  
-  player={
-    x:map.spawnPlayer.x*canvas.width,
-    y:map.spawnPlayer.y*canvas.height,
-    hp:MAX_HP,alive:true,
-    lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,
-    weapon:selectedWeapon,
-    lastX:map.spawnPlayer.x*canvas.width,
-    lastY:map.spawnPlayer.y*canvas.height
-  };
-  
-  enemy={
-    x:map.spawnEnemy.x*canvas.width,
-    y:map.spawnEnemy.y*canvas.height,
-    hp:MAX_HP,alive:true,
-    lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,
-    weapon:'smg+',
-    damage:20,
-    fireRate:400,
-    predictX:player.x,
-    predictY:player.y,
-    strafeDir:1,
-    strafeTimer:0,
-    thought:'Анализирую...',
-    thoughtTimer:0
-  };
-  
+  gameActive=true;scoreH=0;scoreC=0;bullets=[];recoil=0;mouseDown=false;aiming=false;
+  playerHistory=[];velocityHistory=[];accelX=0;accelY=0;lastVelX=0;lastVelY=0;
+  const w=WEAPONS[selectedWeapon],map=MAPS[selectedMap];
+  player={x:map.spawnPlayer.x*canvas.width,y:map.spawnPlayer.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,weapon:selectedWeapon,lastX:map.spawnPlayer.x*canvas.width,lastY:map.spawnPlayer.y*canvas.height};
+  enemy={x:map.spawnEnemy.x*canvas.width,y:map.spawnEnemy.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,weapon:'smg+',damage:20,fireRate:400,predictX:player.x,predictY:player.y,strafeDir:1,strafeTimer:0,thought:'Анализирую...',thoughtTimer:0};
   currentMapName=selectedMap;
   const cw=canvas.width,ch=canvas.height;
-  const mapData=map.obstacles;
-  obstacles=mapData.map(o=>({
-    x:o.x*cw,
-    y:o.y*ch,
-    w:o.w*cw,
-    h:o.h*ch
-  }));
-  
+  obstacles=map.obstacles.map(o=>({x:o.x*cw,y:o.y*ch,w:o.w*cw,h:o.h*ch}));
   document.getElementById('weapon-name').textContent=w.name;
   document.getElementById('bot-thoughts').style.display='block';
-  updateAmmo();
-  updateHP();
-  
+  updateAmmo();updateHP();
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
-  
   gameLoop();
 }
 
-function updateThoughts(thought){
-  enemy.thought=thought;
-  enemy.thoughtTimer=120;
-  document.getElementById('thought-content').innerHTML=thought.split('\n').join('<br>');
-}
+function updateThoughts(thought){enemy.thought=thought;enemy.thoughtTimer=120;document.getElementById('thought-content').innerHTML=thought.split('\n').join('<br>');}
 
 function shoot(){
   if(!gameActive||!player.alive||player.reloading)return;
-  
-  const w=WEAPONS[player.weapon];
-  const now=Date.now();
-  
+  const w=WEAPONS[player.weapon],now=Date.now();
   if(now-player.lastShot<w.fireRate)return;
-  if(player.ammo<=0){
-    startReload();
-    return;
-  }
-  
-  player.lastShot=now;
-  player.ammo--;
-  updateAmmo();
-  
+  if(player.ammo<=0){startReload();return;}
+  player.lastShot=now;player.ammo--;updateAmmo();
   const a=Math.atan2(mouseY-player.y,mouseX-player.x);
-  const currentRecoil=recoil*(Math.random()*0.5+0.5);
   const damage=player.weapon==='sniper'&&aiming?w.scopedDamage:w.damage;
   const bulletSpeed=player.weapon==='sniper'&&aiming?BSPD*3:BSPD;
-  
   if(player.weapon==='shotgun'){
     for(let i=0;i<w.pellets;i++){
       const spread=(Math.random()-0.5)*w.spread;
       bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*bulletSpeed,dy:Math.sin(a+spread)*bulletSpeed,life:60,damage:damage});
     }
   }else{
-    const spread=(Math.random()-0.5)*w.spread+currentRecoil*0.02;
+    const spread=(Math.random()-0.5)*w.spread;
     bullets.push({x:player.x,y:player.y,dx:Math.cos(a+spread)*bulletSpeed,dy:Math.sin(a+spread)*bulletSpeed,life:120,damage:damage});
   }
-  
-  if(player.weapon!=='sniper' && player.weapon!=='shotgun'){
-    recoil=Math.min(w.maxRecoil,recoil+w.recoilPerShot);
-  }
-  
   if(player.ammo<=0)startReload();
 }
 
 function startReload(){
   const w=WEAPONS[player.weapon];
-  player.reloading=true;
-  player.reloadEnd=Date.now()+w.reloadTime;
+  player.reloading=true;player.reloadEnd=Date.now()+w.reloadTime;
   document.getElementById('reload-msg').style.display='block';
-  setTimeout(()=>{
-    if(gameActive&&player.alive){
-      player.ammo=w.maxAmmo;
-      player.reloading=false;
-      document.getElementById('reload-msg').style.display='none';
-      updateAmmo();
-    }
-  },w.reloadTime);
+  setTimeout(()=>{if(gameActive&&player.alive){player.ammo=w.maxAmmo;player.reloading=false;document.getElementById('reload-msg').style.display='none';updateAmmo();}},w.reloadTime);
 }
 
 function updateAmmo(){
-  const w=WEAPONS[player.weapon];
-  const bar=document.getElementById('ammo-bar');
+  const w=WEAPONS[player.weapon],bar=document.getElementById('ammo-bar');
   bar.innerHTML='';
-  const displayCount=Math.min(w.maxAmmo,30);
-  for(let i=0;i<displayCount;i++){
+  for(let i=0;i<Math.min(w.maxAmmo,30);i++){
     const pip=document.createElement('div');
     pip.className='ammo-pip'+(i<player.ammo?'':' empty');
-    if(w.maxAmmo>20){
-      pip.style.width='6px';
-      pip.style.height='6px';
-    }
+    if(w.maxAmmo>20){pip.style.width='6px';pip.style.height='6px';}
     bar.appendChild(pip);
   }
 }
 
 function updateHP(){
-  const playerPct=Math.max(0,player.hp)/MAX_HP*100;
-  const enemyPct=Math.max(0,enemy.hp)/MAX_HP*100;
-  document.getElementById('hp-fill-player').style.width=playerPct+'%';
+  document.getElementById('hp-fill-player').style.width=Math.max(0,player.hp)/MAX_HP*100+'%';
   document.getElementById('hp-text-player').textContent=Math.max(0,player.hp);
-  document.getElementById('hp-fill-enemy').style.width=enemyPct+'%';
+  document.getElementById('hp-fill-enemy').style.width=Math.max(0,enemy.hp)/MAX_HP*100+'%';
   document.getElementById('hp-text-enemy').textContent=Math.max(0,enemy.hp);
 }
 
-function hitObs(x,y,r){
-  return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h);
-}
-
-function canSee(x1,y1,x2,y2){
-  const steps=20;
-  for(let i=0;i<=steps;i++){
-    const t=i/steps;
-    const x=x1+(x2-x1)*t;
-    const y=y1+(y2-y1)*t;
-    if(hitObs(x,y,5))return false;
-  }
-  return true;
-}
+function hitObs(x,y,r){return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h);}
+function canSee(x1,y1,x2,y2){for(let i=0;i<=20;i++){const t=i/20;if(hitObs(x1+(x2-x1)*t,y1+(y2-y1)*t,5))return false;}return true;}
 
 function botAI(){
   if(!enemy.alive)return;
+  enemy.moveTimer--;enemy.strafeTimer--;enemy.thoughtTimer--;
+  if(enemy.thoughtTimer<=0)updateThoughts('...');
   
-  enemy.moveTimer--;
-  enemy.strafeTimer--;
-  enemy.thoughtTimer--;
+  const dx=player.x-enemy.x,dy=player.y-enemy.y,dist=Math.sqrt(dx*dx+dy*dy);
   
-  if(enemy.thoughtTimer<=0){
-    updateThoughts('...');
-  }
-  
-  const dx=player.x-enemy.x;
-  const dy=player.y-enemy.y;
-  const dist=Math.sqrt(dx*dx+dy*dy);
-  
-  // Сохраняем историю движений игрока
+  // Умное предсказание с физикой
   if(player.alive){
-    playerHistory.push({
-      x:player.x,
-      y:player.y,
-      dx:player.x-player.lastX,
-      dy:player.y-player.lastY,
-      time:Date.now()
-    });
+    const velX=player.x-player.lastX;
+    const velY=player.y-player.lastY;
+    
+    // Считаем ускорение
+    accelX=velX-lastVelX;
+    accelY=velY-lastVelY;
+    lastVelX=velX;lastVelY=velY;
+    
+    velocityHistory.push({x:velX,y:velY,ax:accelX,ay:accelY});
+    if(velocityHistory.length>30)velocityHistory.shift();
+    
+    playerHistory.push({x:player.x,y:player.y,vx:velX,vy:velY,ax:accelX,ay:accelY,time:Date.now()});
     if(playerHistory.length>100)playerHistory.shift();
     
-    // Обучение на основе истории
-    if(playerHistory.length>=5){
-      const recent=playerHistory.slice(-5);
-      const avgDx=recent.reduce((s,p)=>s+p.dx,0)/5;
-      const avgDy=recent.reduce((s,p)=>s+p.dy,0)/5;
-      
-      // Плавное обновление предсказания
-      predictedDirX=predictedDirX*(1-learningRate)+avgDx*learningRate;
-      predictedDirY=predictedDirY*(1-learningRate)+avgDy*learningRate;
-      
-      // Увеличиваем learning rate со временем
-      learningRate=Math.min(0.7,learningRate+0.001);
+    player.lastX=player.x;player.lastY=player.y;
+  }
+  
+  // Расчёт предсказания
+  let predictedVelX=0,predictedVelY=0;
+  
+  if(velocityHistory.length>=10){
+    // Средний вектор скорости
+    const recent=velocityHistory.slice(-10);
+    predictedVelX=recent.reduce((s,p)=>s+p.x,0)/10;
+    predictedVelY=recent.reduce((s,p)=>s+p.y,0)/10;
+    
+    // Добавляем ускорение
+    const avgAccelX=recent.reduce((s,p)=>s+p.ax,0)/10;
+    const avgAccelY=recent.reduce((s,p)=>s+p.ay,0)/10;
+    
+    // Предсказываем скорость через время полёта пули
+    const flightTime=dist/BSPD;
+    predictedVelX+=avgAccelX*flightTime*30;
+    predictedVelY+=avgAccelY*flightTime*30;
+    
+    // Учитываем смену направления (если игрок меняет курс)
+    let directionChanges=0;
+    for(let i=1;i<recent.length;i++){
+      if((recent[i].x>0)!=(recent[i-1].x>0))directionChanges++;
+      if((recent[i].y>0)!=(recent[i-1].y>0))directionChanges++;
     }
     
-    player.lastX=player.x;
-    player.lastY=player.y;
+    // Если много смен направления — уменьшаем предсказание
+    if(directionChanges>3){
+      predictedVelX*=0.5;
+      predictedVelY*=0.5;
+    }
   }
   
   const flightTime=dist/BSPD;
-  enemy.predictX=player.x+predictedDirX*flightTime*20;
-  enemy.predictY=player.y+predictedDirY*flightTime*20;
+  enemy.predictX=player.x+predictedVelX*flightTime*15;
+  enemy.predictY=player.y+predictedVelY*flightTime*15;
   
   if(enemy.hp<20){
     const cornerX=enemy.x<canvas.width/2?canvas.width*0.05:canvas.width*0.95;
     const cornerY=enemy.y<canvas.height/2?canvas.height*0.05:canvas.height*0.95;
-    enemy.tx=cornerX;
-    enemy.ty=cornerY;
+    enemy.tx=cornerX;enemy.ty=cornerY;
     updateThoughts('💀 КРИТИЧЕСКИ МАЛО HP\n🏃 УХОЖУ В УГОЛ');
-    const ddx=enemy.tx-enemy.x;
-    const ddy=enemy.ty-enemy.y;
-    const ddist=Math.sqrt(ddx*ddx+ddy*ddy);
+    const ddx=enemy.tx-enemy.x,ddy=enemy.ty-enemy.y,ddist=Math.sqrt(ddx*ddx+ddy*ddy);
     if(ddist>20){
       const moveX=enemy.x+(ddx/ddist)*SPD*0.7;
       const moveY=enemy.y+(ddy/ddist)*SPD*0.7;
@@ -597,15 +378,15 @@ function botAI(){
     }
   }
   else if(hasLineOfSight){
-    if(Date.now()-enemy.lastShot>enemy.fireRate*0.6){
+    if(Date.now()-enemy.lastShot>enemy.fireRate*0.5){
       enemy.lastShot=Date.now();
-      const leadX=enemy.predictX+(player.x-enemy.predictX)*0.5;
-      const leadY=enemy.predictY+(player.y-enemy.predictY)*0.5;
+      const leadX=enemy.predictX;
+      const leadY=enemy.predictY;
       const a=Math.atan2(leadY-enemy.y,leadX-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.015,damage:enemy.damage});
-      updateThoughts('🎯 ЦЕЛЮСЬ С УПРЕЖДЕНИЕМ\n📊 ТОЧНОСТЬ: '+Math.round(learningRate*100)+'%');
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.02,damage:enemy.damage});
+      const accuracy=Math.min(100,Math.round(50+velocityHistory.length*2));
+      updateThoughts('🎯 ЦЕЛЮСЬ С УПРЕЖДЕНИЕМ\n📊 ТОЧНОСТЬ: '+accuracy+'%');
     }
-    
     if(enemy.strafeTimer<=0){
       enemy.strafeTimer=30+Math.random()*30;
       enemy.strafeDir*=-1;
@@ -628,57 +409,23 @@ function botAI(){
     }
   }
   
-  const tdx=enemy.tx-enemy.x;
-  const tdy=enemy.ty-enemy.y;
-  const tdist=Math.sqrt(tdx*tdx+tdy*tdy);
-  
+  const tdx=enemy.tx-enemy.x,tdy=enemy.ty-enemy.y,tdist=Math.sqrt(tdx*tdx+tdy*tdy);
   if(tdist>5){
     const moveX=enemy.x+(tdx/tdist)*SPD*0.75;
     const moveY=enemy.y+(tdy/tdist)*SPD*0.75;
-    
-    if(!hitObs(moveX,enemy.y,12)){
-      enemy.x=moveX;
-    }else{
-      enemy.ty+=80*(Math.random()>0.5?1:-1);
-      enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
-    }
-    
-    if(!hitObs(enemy.x,moveY,12)){
-      enemy.y=moveY;
-    }else{
-      enemy.tx+=80*(Math.random()>0.5?1:-1);
-      enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
-    }
+    if(!hitObs(moveX,enemy.y,12))enemy.x=moveX;else{enemy.ty+=80*(Math.random()>0.5?1:-1);enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));}
+    if(!hitObs(enemy.x,moveY,12))enemy.y=moveY;else{enemy.tx+=80*(Math.random()>0.5?1:-1);enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));}
   }
-  
   enemy.x=Math.max(12,Math.min(canvas.width-12,enemy.x));
   enemy.y=Math.max(12,Math.min(canvas.height-12,enemy.y));
 }
 
 function gameLoop(){
   if(!gameActive){requestAnimationFrame(gameLoop);return}
-  
   const w=WEAPONS[player.weapon];
-  
-  if(player.reloading&&Date.now()>player.reloadEnd){
-    player.ammo=w.maxAmmo;
-    player.reloading=false;
-    recoil=0;
-    document.getElementById('reload-msg').style.display='none';
-    updateAmmo();
-  }
-  
-  if(recoil>0){
-    recoil=Math.max(0,recoil-0.3);
-    if(recoil<=0.1){
-      recoil=0;
-    }
-  }
-  
-  if(mouseDown&&player.weapon!=='sniper'){
-    shoot();
-  }
-  
+  if(player.reloading&&Date.now()>player.reloadEnd){player.ammo=w.maxAmmo;player.reloading=false;recoil=0;document.getElementById('reload-msg').style.display='none';updateAmmo();}
+  if(recoil>0){recoil=Math.max(0,recoil-0.3);if(recoil<=0.1)recoil=0;}
+  if(mouseDown&&player.weapon!=='sniper')shoot();
   if(player.alive){
     let nx=player.x,ny=player.y;
     const moveSpd=aiming?SPD*0.5:SPD;
@@ -691,140 +438,42 @@ function gameLoop(){
     if(!hitObs(nx,player.y,10))player.x=nx;
     if(!hitObs(player.x,ny,10))player.y=ny;
   }
-  
   botAI();
-  
   const map=MAPS[currentMapName];
-  ctx.fillStyle=map?map.color:'#000';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  
-  ctx.strokeStyle='#111';
-  const gridSize=40;
+  ctx.fillStyle=map?map.color:'#000';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='#111';const gridSize=40;
   for(let i=0;i<canvas.width;i+=gridSize){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke()}
   for(let j=0;j<canvas.height;j+=gridSize){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(canvas.width,j);ctx.stroke()}
-  
-  if(map){
-    obstacles.forEach(o=>{
-      ctx.fillStyle=map.obstacleColor;
-      ctx.fillRect(o.x,o.y,o.w,o.h);
-      ctx.strokeStyle=map.obstacleBorder;
-      ctx.lineWidth=2;
-      ctx.strokeRect(o.x,o.y,o.w,o.h);
-      ctx.lineWidth=1;
-    });
-  }
-  
-  if(aiming&&player.weapon==='sniper'&&player.alive){
-    const a=Math.atan2(mouseY-player.y,mouseX-player.x);
-    ctx.strokeStyle='rgba(255,0,0,.8)';
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    ctx.moveTo(player.x,player.y);
-    ctx.lineTo(player.x+Math.cos(a)*1000,player.y+Math.sin(a)*1000);
-    ctx.stroke();
-    ctx.lineWidth=1;
-  }
-  
+  if(map){obstacles.forEach(o=>{ctx.fillStyle=map.obstacleColor;ctx.fillRect(o.x,o.y,o.w,o.h);ctx.strokeStyle=map.obstacleBorder;ctx.lineWidth=2;ctx.strokeRect(o.x,o.y,o.w,o.h);ctx.lineWidth=1;});}
+  if(aiming&&player.weapon==='sniper'&&player.alive){const a=Math.atan2(mouseY-player.y,mouseX-player.x);ctx.strokeStyle='rgba(255,0,0,.8)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(player.x,player.y);ctx.lineTo(player.x+Math.cos(a)*1000,player.y+Math.sin(a)*1000);ctx.stroke();ctx.lineWidth=1;}
   bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f0f':(b.damage>=70?'#f00':b.damage===50?'#ff0':b.damage===3?'#fff':'#f0f');ctx.beginPath();ctx.arc(b.x,b.y,BR,0,Math.PI*2);ctx.fill()});
-  
-  if(player.alive){
-    ctx.fillStyle='#0f0';
-    ctx.beginPath();
-    ctx.arc(player.x,player.y,14,0,Math.PI*2);
-    ctx.fill();
-  }
-  
-  if(enemy.alive){
-    ctx.fillStyle='#f00';
-    ctx.beginPath();
-    ctx.arc(enemy.x,enemy.y,14,0,Math.PI*2);
-    ctx.fill();
-  }
-  
+  if(player.alive){ctx.fillStyle='#0f0';ctx.beginPath();ctx.arc(player.x,player.y,14,0,Math.PI*2);ctx.fill();}
+  if(enemy.alive){ctx.fillStyle='#f00';ctx.beginPath();ctx.arc(enemy.x,enemy.y,14,0,Math.PI*2);ctx.fill();}
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
-    
-    if(b.enemy&&b.homing&&player.alive){
-      const a=Math.atan2(player.y-b.y,player.x-b.x);
-      const curA=Math.atan2(b.dy,b.dx);
-      const diff=a-curA;
-      const turn=Math.max(-b.homing,Math.min(b.homing,diff));
-      const newA=curA+turn;
-      b.dx=Math.cos(newA)*BSPD;
-      b.dy=Math.sin(newA)*BSPD;
-    }
-    
+    if(b.enemy&&b.homing&&player.alive){const a=Math.atan2(player.y-b.y,player.x-b.x),curA=Math.atan2(b.dy,b.dx),diff=a-curA,turn=Math.max(-b.homing,Math.min(b.homing,diff)),newA=curA+turn;b.dx=Math.cos(newA)*BSPD;b.dy=Math.sin(newA)*BSPD;}
     b.x+=b.dx;b.y+=b.dy;b.life--;
     let rem=b.life<=0||b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height||hitObs(b.x,b.y,BR);
     if(!rem){
       const t=b.enemy?player:enemy;
       if(t.alive&&Math.abs(b.x-t.x)<16&&Math.abs(b.y-t.y)<16){
-        rem=true;
-        const dmg=b.damage||50;
-        if(b.enemy){
-          player.hp-=dmg;
-          if(player.hp<=0){
-            player.alive=false;
-            scoreC++;
-            setTimeout(()=>{
-              if(scoreC<MAX_SCORE){
-                const map=MAPS[currentMapName];
-                player.x=map.spawnPlayer.x*canvas.width;
-                player.y=map.spawnPlayer.y*canvas.height;
-                player.hp=MAX_HP;
-                player.alive=true;
-              }
-            },1500);
-            checkWin();
-          }
-        }else{
-          enemy.hp-=dmg;
-          if(enemy.hp<=0){
-            enemy.alive=false;
-            scoreH++;
-            setTimeout(()=>{
-              if(scoreH<MAX_SCORE){
-                const map=MAPS[currentMapName];
-                enemy.x=map.spawnEnemy.x*canvas.width;
-                enemy.y=map.spawnEnemy.y*canvas.height;
-                enemy.hp=MAX_HP;
-                enemy.alive=true;
-              }
-            },1500);
-            checkWin();
-          }
-        }
+        rem=true;const dmg=b.damage||50;
+        if(b.enemy){player.hp-=dmg;if(player.hp<=0){player.alive=false;scoreC++;setTimeout(()=>{if(scoreC<MAX_SCORE){const map=MAPS[currentMapName];player.x=map.spawnPlayer.x*canvas.width;player.y=map.spawnPlayer.y*canvas.height;player.hp=MAX_HP;player.alive=true;}},1500);checkWin();}}
+        else{enemy.hp-=dmg;if(enemy.hp<=0){enemy.alive=false;scoreH++;setTimeout(()=>{if(scoreH<MAX_SCORE){const map=MAPS[currentMapName];enemy.x=map.spawnEnemy.x*canvas.width;enemy.y=map.spawnEnemy.y*canvas.height;enemy.hp=MAX_HP;enemy.alive=true;}},1500);checkWin();}}
         updateHP();
       }
     }
     if(rem)bullets.splice(i,1);
   }
-  
   updateHP();
-  
   document.getElementById('score-host').innerHTML=scoreH+'<span class="score-label">ТЫ</span>';
   document.getElementById('score-client').innerHTML=scoreC+'<span class="score-label">БОТ</span>';
-  
   requestAnimationFrame(gameLoop);
 }
 
 function checkWin(){
-  if(scoreH>=MAX_SCORE){
-    gameActive=false;
-    document.getElementById('final-title').textContent='🏆 ТЫ ПОБЕДИЛ!';
-    document.getElementById('final-title').style.color='#0f0';
-    document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';
-    document.getElementById('final-screen').style.display='flex';
-    document.getElementById('bot-thoughts').style.display='none';
-  }
-  if(scoreC>=MAX_SCORE){
-    gameActive=false;
-    document.getElementById('final-title').textContent='💀 ТЫ ПРОИГРАЛ';
-    document.getElementById('final-title').style.color='#f00';
-    document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';
-    document.getElementById('final-screen').style.display='flex';
-    document.getElementById('bot-thoughts').style.display='none';
-  }
+  if(scoreH>=MAX_SCORE){gameActive=false;document.getElementById('final-title').textContent='🏆 ТЫ ПОБЕДИЛ!';document.getElementById('final-title').style.color='#0f0';document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';document.getElementById('final-screen').style.display='flex';document.getElementById('bot-thoughts').style.display='none';}
+  if(scoreC>=MAX_SCORE){gameActive=false;document.getElementById('final-title').textContent='💀 ТЫ ПРОИГРАЛ';document.getElementById('final-title').style.color='#f00';document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';document.getElementById('final-screen').style.display='flex';document.getElementById('bot-thoughts').style.display='none';}
 }
 </script>
 </body>
