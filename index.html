@@ -132,7 +132,7 @@ const MAPS={
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
-let lastPlayerX, lastPlayerY;
+let lastPlayerX, lastPlayerY, lastLastPlayerX, lastLastPlayerY;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -212,6 +212,7 @@ function startGame(){
   obstacles=map.obstacles.map(o=>({x:o.x*cw,y:o.y*ch,w:o.w*cw,h:o.h*ch}));
   document.getElementById('weapon-name').textContent=w.name;
   lastPlayerX=player.x;lastPlayerY=player.y;
+  lastLastPlayerX=player.x;lastLastPlayerY=player.y;
   updateAmmo();updateHP();
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
@@ -273,14 +274,17 @@ function botAI(){
   
   const dx=player.x-enemy.x,dy=player.y-enemy.y,dist=Math.sqrt(dx*dx+dy*dy);
   
-  // Предсказание
+  // Предсказание с усреднением
   const velX=(player.x-lastPlayerX);
   const velY=(player.y-lastPlayerY);
+  const avgVelX=(velX+(lastPlayerX-lastLastPlayerX))/2;
+  const avgVelY=(velY+(lastPlayerY-lastLastPlayerY))/2;
   
   const flightTime=dist/BSPD;
-  const predictX=player.x+velX*flightTime*5;
-  const predictY=player.y+velY*flightTime*5;
+  const predictX=player.x+avgVelX*flightTime*8;
+  const predictY=player.y+avgVelY*flightTime*8;
   
+  lastLastPlayerX=lastPlayerX;lastLastPlayerY=lastPlayerY;
   lastPlayerX=player.x;lastPlayerY=player.y;
   
   if(enemy.hp<20){
@@ -341,11 +345,11 @@ function botAI(){
   if(tdist>5){
     const moveX=enemy.x+(tdx/tdist)*SPD*0.75;
     const moveY=enemy.y+(tdy/tdist)*SPD*0.75;
-    if(!hitObs(moveX,enemy.y,12))enemy.x=moveX;else{enemy.ty+=80*(Math.random()>0.5?1:-1);enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));}
-    if(!hitObs(enemy.x,moveY,12))enemy.y=moveY;else{enemy.tx+=80*(Math.random()>0.5?1:-1);enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));}
+    if(!hitObs(moveX,enemy.y,20))enemy.x=moveX;else{enemy.ty+=80*(Math.random()>0.5?1:-1);enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));}
+    if(!hitObs(enemy.x,moveY,20))enemy.y=moveY;else{enemy.tx+=80*(Math.random()>0.5?1:-1);enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));}
   }
-  enemy.x=Math.max(12,Math.min(canvas.width-12,enemy.x));
-  enemy.y=Math.max(12,Math.min(canvas.height-12,enemy.y));
+  enemy.x=Math.max(20,Math.min(canvas.width-20,enemy.x));
+  enemy.y=Math.max(20,Math.min(canvas.height-20,enemy.y));
 }
 
 function gameLoop(){
