@@ -568,18 +568,36 @@ function updateParticles(){
 }
 
 function project(x,y,z){
-  const dx=x-player.x,dy=y-player.y,dz=z-player.z;
-  const cosYaw=Math.cos(-player.yaw),sinYaw=Math.sin(-player.yaw);
-  const cosPitch=Math.cos(-player.pitch),sinPitch=Math.sin(-player.pitch);
-  const rx=dx*cosYaw-dy*sinYaw;
-  const ry=dx*sinYaw+dy*cosYaw;
-  const rz=rx*cosPitch-dz*sinPitch;
-  const rz2=rx*sinPitch+dz*cosPitch;
-  if(rz2<=0.2)return null;
-  const fov=500;
-  const sx=canvas.width/2+ry*fov/rz2;
-  const sy=canvas.height/2-ry*0.3*fov/rz2+(canvas.height/2-rz2*fov/rz2)*0.5;
-  return{x:sx,y:sy,scale:fov/rz2,z:rz2};
+  const dx=x-player.x;
+  const dy=y-player.y;
+  const dz=z-player.z;
+
+  // Поворот мира относительно направления взгляда
+  const cosYaw=Math.cos(player.yaw);
+  const sinYaw=Math.sin(player.yaw);
+
+  const forward=dx*cosYaw+dy*sinYaw;
+  const side=-dx*sinYaw+dy*cosYaw;
+
+  // Если объект за камерой — не рисуем
+  if(forward<=0.15)return null;
+
+  const cosPitch=Math.cos(player.pitch);
+  const sinPitch=Math.sin(player.pitch);
+
+  const vertical=dz*cosPitch-forward*sinPitch;
+  const depth=forward*cosPitch+dz*sinPitch;
+
+  if(depth<=0.15)return null;
+
+  const fov=700;
+
+  return {
+    x:canvas.width/2+(side*fov/depth),
+    y:canvas.height/2-(vertical*fov/depth),
+    scale:fov/depth,
+    z:depth
+  };
 }
 
 function drawPlayerModel(){
