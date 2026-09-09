@@ -48,6 +48,8 @@ canvas{display:block;width:100%;height:100%}
 .map-btn:hover{background:#0f0;color:#000}
 .map-btn.selected{background:#0f0;color:#000}
 .map-desc{color:#8f8;font-size:13px;margin-bottom:20px;text-align:center;max-width:600px;line-height:1.5}
+#bot-thoughts{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.9);border:2px solid #f00;color:#f00;padding:10px;max-width:280px;font-size:11px;z-index:100;line-height:1.5}
+#thought-title{color:#ff0;font-weight:bold;margin-bottom:5px;font-size:12px}
 </style>
 </head>
 <body>
@@ -105,6 +107,10 @@ canvas{display:block;width:100%;height:100%}
 <div id="final-title"></div>
 <div id="final-score"></div>
 <button id="btn-restart" style="background:#0f0;color:#000;border:none;padding:20px 50px;font-size:22px;font-weight:bold;cursor:pointer;font-family:monospace;margin-top:20px">ЕЩЁ РАЗ</button>
+</div>
+<div id="bot-thoughts" style="display:none">
+<div id="thought-title">🤖 МЫСЛИ БОТА</div>
+<div id="thought-content"></div>
 </div>
 </div>
 <script>
@@ -220,6 +226,10 @@ const MAPS={
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
 
+let playerHistory=[];
+let learningRate=0.3;
+let predictedDirX=0,predictedDirY=0;
+
 function selectWeapon(weapon){
   selectedWeapon=weapon;
   document.getElementById('btnSniper').classList.toggle('selected',weapon==='sniper');
@@ -279,6 +289,10 @@ document.getElementById('btn-restart').onclick=()=>{
   document.querySelectorAll('.map-btn').forEach(btn=>btn.classList.remove('selected'));
   document.getElementById('mapDesc').innerHTML='Нажми на карту чтобы выбрать';
   document.getElementById('map-start-btn').disabled=true;
+  playerHistory=[];
+  learningRate=0.3;
+  predictedDirX=0;
+  predictedDirY=0;
 };
 
 function switchWeapon(){
@@ -348,6 +362,10 @@ function startGame(){
   recoil=0;
   mouseDown=false;
   aiming=false;
+  playerHistory=[];
+  learningRate=0.3;
+  predictedDirX=0;
+  predictedDirY=0;
   
   const w=WEAPONS[selectedWeapon];
   const map=MAPS[selectedMap];
@@ -357,7 +375,9 @@ function startGame(){
     y:map.spawnPlayer.y*canvas.height,
     hp:MAX_HP,alive:true,
     lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,
-    weapon:selectedWeapon
+    weapon:selectedWeapon,
+    lastX:map.spawnPlayer.x*canvas.width,
+    lastY:map.spawnPlayer.y*canvas.height
   };
   
   enemy={
@@ -371,7 +391,9 @@ function startGame(){
     predictX:player.x,
     predictY:player.y,
     strafeDir:1,
-    strafeTimer:0
+    strafeTimer:0,
+    thought:'Анализирую...',
+    thoughtTimer:0
   };
   
   currentMapName=selectedMap;
@@ -385,6 +407,7 @@ function startGame(){
   }));
   
   document.getElementById('weapon-name').textContent=w.name;
+  document.getElementById('bot-thoughts').style.display='block';
   updateAmmo();
   updateHP();
   
@@ -392,6 +415,12 @@ function startGame(){
   window.onkeyup=e=>keys[e.code]=false;
   
   gameLoop();
+}
+
+function updateThoughts(thought){
+  enemy.thought=thought;
+  enemy.thoughtTimer=120;
+  document.getElementById('thought-content').innerHTML=thought.split('\n').join('<br>');
 }
 
 function shoot(){
@@ -492,23 +521,55 @@ function botAI(){
   
   enemy.moveTimer--;
   enemy.strafeTimer--;
+  enemy.thoughtTimer--;
   
-  // Предсказание движения игрока
+  if(enemy.thoughtTimer<=0){
+    updateThoughts('...');
+  }
+  
   const dx=player.x-enemy.x;
   const dy=player.y-enemy.y;
   const dist=Math.sqrt(dx*dx+dy*dy);
   
-  // Предсказываем где будет игрок через время полёта пули
-  const flightTime=dist/BSPD;
-  enemy.predictX=player.x+(player.x-(enemy.predictX||player.x))*0.3;
-  enemy.predictY=player.y+(player.y-(enemy.predictY||player.y))*0.3;
+  // Сохраняем историю движений игрока
+  if(player.alive){
+    playerHistory.push({
+      x:player.x,
+      y:player.y,
+      dx:player.x-player.lastX,
+      dy:player.y-player.lastY,
+      time:Date.now()
+    });
+    if(playerHistory.length>100)playerHistory.shift();
+    
+    // Обучение на основе истории
+    if(playerHistory.length>=5){
+      const recent=playerHistory.slice(-5);
+      const avgDx=recent.reduce((s,p)=>s+p.dx,0)/5;
+      const avgDy=recent.reduce((s,p)=>s+p.dy,0)/5;
+      
+      // Плавное обновление предсказания
+      predictedDirX=predictedDirX*(1-learningRate)+avgDx*learningRate;
+      predictedDirY=predictedDirY*(1-learningRate)+avgDy*learningRate;
+      
+      // Увеличиваем learning rate со временем
+      learningRate=Math.min(0.7,learningRate+0.001);
+    }
+    
+    player.lastX=player.x;
+    player.lastY=player.y;
+  }
   
-  // <20 HP - убегаем в угол
+  const flightTime=dist/BSPD;
+  enemy.predictX=player.x+predictedDirX*flightTime*20;
+  enemy.predictY=player.y+predictedDirY*flightTime*20;
+  
   if(enemy.hp<20){
     const cornerX=enemy.x<canvas.width/2?canvas.width*0.05:canvas.width*0.95;
     const cornerY=enemy.y<canvas.height/2?canvas.height*0.05:canvas.height*0.95;
     enemy.tx=cornerX;
     enemy.ty=cornerY;
+    updateThoughts('💀 КРИТИЧЕСКИ МАЛО HP\n🏃 УХОЖУ В УГОЛ');
     const ddx=enemy.tx-enemy.x;
     const ddy=enemy.ty-enemy.y;
     const ddist=Math.sqrt(ddx*ddx+ddy*ddy);
@@ -521,34 +582,30 @@ function botAI(){
     return;
   }
   
-  // Умное позиционирование
   const hasLineOfSight=canSee(enemy.x,enemy.y,player.x,player.y);
   
   if(enemy.hp<MAX_HP*0.4){
-    // Ищем укрытие
-    if(enemy.moveTimer<=0 || !hasLineOfSight){
+    if(enemy.moveTimer<=0||!hasLineOfSight){
       enemy.moveTimer=40+Math.random()*20;
-      // Ищем позицию за препятствием
       const retreatAngle=Math.atan2(dy,dx)+Math.PI;
       const retreatDist=200+Math.random()*100;
       enemy.tx=enemy.x+Math.cos(retreatAngle)*retreatDist;
       enemy.ty=enemy.y+Math.sin(retreatAngle)*retreatDist;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
+      updateThoughts('💔 РАНЕН\n🛡️ ИЩУ УКРЫТИЕ');
     }
   }
   else if(hasLineOfSight){
-    // Стреляем с упреждением
     if(Date.now()-enemy.lastShot>enemy.fireRate*0.6){
       enemy.lastShot=Date.now();
-      // Стреляем с упреждением
       const leadX=enemy.predictX+(player.x-enemy.predictX)*0.5;
       const leadY=enemy.predictY+(player.y-enemy.predictY)*0.5;
       const a=Math.atan2(leadY-enemy.y,leadX-enemy.x);
       bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.015,damage:enemy.damage});
+      updateThoughts('🎯 ЦЕЛЮСЬ С УПРЕЖДЕНИЕМ\n📊 ТОЧНОСТЬ: '+Math.round(learningRate*100)+'%');
     }
     
-    // Strafe движение (перемещение из стороны в сторону)
     if(enemy.strafeTimer<=0){
       enemy.strafeTimer=30+Math.random()*30;
       enemy.strafeDir*=-1;
@@ -561,18 +618,16 @@ function botAI(){
     }
   }
   else{
-    // Ищем игрока
     if(enemy.moveTimer<=0){
       enemy.moveTimer=30;
-      // Двигаемся к последней известной позиции
       enemy.tx=enemy.x+dx/dist*120;
       enemy.ty=enemy.y+dy/dist*120;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
+      updateThoughts('🔍 ПОТЕРЯЛ ВИЗУАЛ\n🧭 ИДУ ПОСЛЕДНЕМУ ИЗВЕСТНОМУ');
     }
   }
   
-  // Движение к цели
   const tdx=enemy.tx-enemy.x;
   const tdy=enemy.ty-enemy.y;
   const tdist=Math.sqrt(tdx*tdx+tdy*tdy);
@@ -760,6 +815,7 @@ function checkWin(){
     document.getElementById('final-title').style.color='#0f0';
     document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';
     document.getElementById('final-screen').style.display='flex';
+    document.getElementById('bot-thoughts').style.display='none';
   }
   if(scoreC>=MAX_SCORE){
     gameActive=false;
@@ -767,6 +823,7 @@ function checkWin(){
     document.getElementById('final-title').style.color='#f00';
     document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';
     document.getElementById('final-screen').style.display='flex';
+    document.getElementById('bot-thoughts').style.display='none';
   }
 }
 </script>
