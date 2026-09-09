@@ -138,7 +138,7 @@ const MAPS={
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
-let playerHistory=[],velocityHistory=[],accelX=0,accelY=0,lastVelX=0,lastVelY=0;
+let playerHistory=[],lastPlayerX, lastPlayerY;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -182,7 +182,7 @@ document.getElementById('btn-restart').onclick=()=>{
   document.querySelectorAll('.map-btn').forEach(btn=>btn.classList.remove('selected'));
   document.getElementById('mapDesc').innerHTML='Нажми на карту чтобы выбрать';
   document.getElementById('map-start-btn').disabled=true;
-  playerHistory=[];velocityHistory=[];accelX=0;accelY=0;lastVelX=0;lastVelY=0;
+  playerHistory=[];
 };
 
 function switchWeapon(){
@@ -211,15 +211,16 @@ document.addEventListener('mouseup',e=>{
 
 function startGame(){
   gameActive=true;scoreH=0;scoreC=0;bullets=[];recoil=0;mouseDown=false;aiming=false;
-  playerHistory=[];velocityHistory=[];accelX=0;accelY=0;lastVelX=0;lastVelY=0;
+  playerHistory=[];
   const w=WEAPONS[selectedWeapon],map=MAPS[selectedMap];
-  player={x:map.spawnPlayer.x*canvas.width,y:map.spawnPlayer.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,weapon:selectedWeapon,lastX:map.spawnPlayer.x*canvas.width,lastY:map.spawnPlayer.y*canvas.height};
+  player={x:map.spawnPlayer.x*canvas.width,y:map.spawnPlayer.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,weapon:selectedWeapon};
   enemy={x:map.spawnEnemy.x*canvas.width,y:map.spawnEnemy.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,weapon:'smg+',damage:20,fireRate:400,predictX:player.x,predictY:player.y,strafeDir:1,strafeTimer:0,thought:'Анализирую...',thoughtTimer:0};
   currentMapName=selectedMap;
   const cw=canvas.width,ch=canvas.height;
   obstacles=map.obstacles.map(o=>({x:o.x*cw,y:o.y*ch,w:o.w*cw,h:o.h*ch}));
   document.getElementById('weapon-name').textContent=w.name;
   document.getElementById('bot-thoughts').style.display='block';
+  lastPlayerX=player.x;lastPlayerY=player.y;
   updateAmmo();updateHP();
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
@@ -284,48 +285,30 @@ function botAI(){
   
   const dx=player.x-enemy.x,dy=player.y-enemy.y,dist=Math.sqrt(dx*dx+dy*dy);
   
-  // Умное предсказание
+  // Простое предсказание
   if(player.alive){
-    const velX=player.x-player.lastX;
-    const velY=player.y-player.lastY;
-    accelX=velX-lastVelX;accelY=velY-lastVelY;
-    lastVelX=velX;lastVelY=velY;
+    const velX=(player.x-lastPlayerX);
+    const velY=(player.y-lastPlayerY);
     
-    velocityHistory.push({x:velX,y:velY,ax:accelX,ay:accelY});
-    if(velocityHistory.length>30)velocityHistory.shift();
+    playerHistory.push({x:player.x,y:player.y,vx:velX,vy:velY});
+    if(playerHistory.length>20)playerHistory.shift();
     
-    playerHistory.push({x:player.x,y:player.y,vx:velX,vy:velY,ax:accelX,ay:accelY,time:Date.now()});
-    if(playerHistory.length>100)playerHistory.shift();
+    lastPlayerX=player.x;lastPlayerY=player.y;
     
-    player.lastX=player.x;player.lastY=player.y;
-  }
-  
-  // Расчёт предсказания
-  let predictedVelX=0,predictedVelY=0;
-  
-  if(velocityHistory.length>=10){
-    const recent=velocityHistory.slice(-10);
-    predictedVelX=recent.reduce((s,p)=>s+p.x,0)/10;
-    predictedVelY=recent.reduce((s,p)=>s+p.y,0)/10;
-    
-    const avgAccelX=recent.reduce((s,p)=>s+p.ax,0)/10;
-    const avgAccelY=recent.reduce((s,p)=>s+p.ay,0)/10;
-    
-    const flightTime=dist/BSPD;
-    predictedVelX+=avgAccelX*flightTime*30;
-    predictedVelY+=avgAccelY*flightTime*30;
-    
-    let directionChanges=0;
-    for(let i=1;i<recent.length;i++){
-      if((recent[i].x>0)!=(recent[i-1].x>0))directionChanges++;
-      if((recent[i].y>0)!=(recent[i-1].y>0))directionChanges++;
+    // Предсказываем на основе средней скорости
+    if(playerHistory.length>=5){
+      const recent=playerHistory.slice(-5);
+      const avgVelX=recent.reduce((s,p)=>s+p.vx,0)/5;
+      const avgVelY=recent.reduce((s,p)=>s+p.vy,0)/5;
+      
+      const flightTime=dist/BSPD;
+      enemy.predictX=player.x+avgVelX*flightTime*10;
+      enemy.predictY=player.y+avgVelY*flightTime*10;
+    }else{
+      enemy.predictX=player.x;
+      enemy.predictY=player.y;
     }
-    if(directionChanges>3){predictedVelX*=0.5;predictedVelY*=0.5;}
   }
-  
-  const flightTime=dist/BSPD;
-  enemy.predictX=player.x+predictedVelX*flightTime*15;
-  enemy.predictY=player.y+predictedVelY*flightTime*15;
   
   if(enemy.hp<20){
     const cornerX=enemy.x<canvas.width/2?canvas.width*0.05:canvas.width*0.95;
@@ -363,8 +346,7 @@ function botAI(){
       const leadY=enemy.predictY;
       const a=Math.atan2(leadY-enemy.y,leadX-enemy.x);
       bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.01,damage:enemy.damage});
-      const accuracy=Math.min(100,Math.round(50+velocityHistory.length*2));
-      updateThoughts('🎯 ЦЕЛЮСЬ С УПРЕЖДЕНИЕМ\n📊 ТОЧНОСТЬ: '+accuracy+'%');
+      updateThoughts('🎯 ЦЕЛЮСЬ\n📊 ВИЖУ ТЕБЯ');
     }
     if(enemy.strafeTimer<=0){
       enemy.strafeTimer=30+Math.random()*30;
@@ -384,7 +366,7 @@ function botAI(){
       enemy.ty=enemy.y+dy/dist*120;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
-      updateThoughts('🔍 ПОТЕРЯЛ ВИЗУАЛ\n🧭 ИДУ ПОСЛЕДНЕМУ ИЗВЕСТНОМУ');
+      updateThoughts('🔍 ПОТЕРЯЛ ВИЗУАЛ\n🧭 ИДУ К ТЕБЕ');
     }
   }
   
