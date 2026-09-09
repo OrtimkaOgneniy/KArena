@@ -123,6 +123,7 @@ resizeCanvas();window.addEventListener('resize',resizeCanvas);
 let gameActive=false,player,enemy,keys={},bullets=[],obstacles=[],scoreH=0,scoreC=0;
 let selectedWeapon=null,aiming=false,mouseX=0,mouseY=0;
 let mouseDown=false,recoil=0;
+let particles=[];
 
 const WEAPONS={
   sniper:{name:'СНАЙПЕРКА',damage:50,scopedDamage:70,maxAmmo:3,reloadTime:5000,fireRate:2000,spread:0,recoilPerShot:0,maxRecoil:0,color:'#ff0'},
@@ -172,6 +173,7 @@ const BIG_MAP={
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
 const DASH_DIST=180;
 const DASH_COOLDOWN=3000;
+const DASH_DURATION=180;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -242,11 +244,46 @@ function findValidSpawn(isPlayer){
   return isPlayer?{x:150,y:WORLD_H/2}:{x:WORLD_W-150,y:WORLD_H/2};
 }
 
+function createDashParticles(x,y,dx,dy){
+  for(let i=0;i<25;i++){
+    const angle=Math.atan2(dy,dx)+(Math.random()-0.5)*1.2;
+    const speed=2+Math.random()*4;
+    particles.push({
+      x:x,
+      y:y,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed,
+      life:20+Math.random()*10,
+      maxLife:30,
+      size:2+Math.random()*3,
+      color:`hsla(${120+Math.random()*40},100%,50%,${1})`
+    });
+  }
+}
+
+function createHitParticles(x,y,color,count=12){
+  for(let i=0;i<count;i++){
+    const angle=Math.random()*Math.PI*2;
+    const speed=1+Math.random()*3;
+    particles.push({
+      x:x,
+      y:y,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed,
+      life:15+Math.random()*10,
+      maxLife:25,
+      size:1.5+Math.random()*2,
+      color:color
+    });
+  }
+}
+
 function startGame(){
   gameActive=true;
   scoreH=0;
   scoreC=0;
   bullets=[];
+  particles=[];
   recoil=0;
   mouseDown=false;
   aiming=false;
@@ -266,7 +303,13 @@ function startGame(){
     weapon:selectedWeapon,
     lastX:playerSpawn.x,
     lastY:playerSpawn.y,
-    dashReady:0
+    dashReady:0,
+    isDashing:false,
+    dashTime:0,
+    dashDx:0,
+    dashDy:0,
+    dashStartX:playerSpawn.x,
+    dashStartY:playerSpawn.y
   };
 
   enemy={
@@ -311,7 +354,7 @@ function startGame(){
 
 function performDash(){
   const now=Date.now();
-  if(now<player.dashReady)return;
+  if(now<player.dashReady||player.isDashing)return;
 
   let dx=0,dy=0;
   if(keys['KeyW']||keys['ArrowUp'])dy-=1;
@@ -320,7 +363,8 @@ function performDash(){
   if(keys['KeyD']||keys['ArrowRight'])dx+=1;
 
   if(dx===0&&dy===0){
-    const angle=Math.atan2(mouseY-player.y,mouseX-player.x);
+    const screenPlayer=worldToScreen(player.x,player.y);
+    const angle=Math.atan2(mouseY-screenPlayer.y,mouseX-screenPlayer.x);
     dx=Math.cos(angle);
     dy=Math.sin(angle);
   }
@@ -331,27 +375,28 @@ function performDash(){
     dy/=len;
   }
 
-  const dashX=player.x+dx*DASH_DIST;
-  const dashY=player.y+dy*DASH_DIST;
-
-  const clampedX=Math.max(PLAYER_R,Math.min(WORLD_W-PLAYER_R,dashX));
-  const clampedY=Math.max(PLAYER_R,Math.min(WORLD_H-PLAYER_R,dashY));
-
-  if(!hitObs(clampedX,clampedY,PLAYER_R)){
-    player.x=clampedX;
-    player.y=clampedY;
-  }
-
+  player.isDashing=true;
+  player.dashTime=DASH_DURATION;
+  player.dashDx=dx;
+  player.dashDy=dy;
+  player.dashStartX=player.x;
+  player.dashStartY=player.y;
   player.dashReady=now+DASH_COOLDOWN;
+
+  createDashParticles(player.x,player.y,dx,dy);
   updateDashIndicator();
 }
 
 function updateDashIndicator(){
   const now=Date.now();
-  if(now>=player.dashReady){
+  if(now>=player.dashReady&&!player.isDashing){
     dashIndicator.style.display='block';
     dashIndicator.textContent='РЫВОК ГОТОВ (Q)';
     dashIndicator.style.color='#0f0';
+  }else if(player.isDashing){
+    dashIndicator.style.display='block';
+    dashIndicator.textContent='РЫВОК!';
+    dashIndicator.style.color='#ff0';
   }else{
     const cdLeft=Math.ceil((player.dashReady-now)/1000);
     dashIndicator.style.display='block';
@@ -602,6 +647,31 @@ function botAI(){
   }
 }
 
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;
+    p.y+=p.vy;
+    p.life--;
+    p.vx*=0.94;
+    p.vy*=0.94;
+    if(p.life<=0){
+      particles.splice(i,1);
+    }
+  }
+}
+
+function drawParticles(){
+  particles.forEach(p=>{
+    const s=worldToScreen(p.x,p.y);
+    const alpha=p.life/p.maxLife;
+    ctx.fillStyle=p.color.replace('1)',`${alpha})`);
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,p.size,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
 function gameLoop(){
   if(!gameActive){requestAnimationFrame(gameLoop);return}
   const w=WEAPONS[player.weapon];
@@ -617,22 +687,36 @@ function gameLoop(){
   if(player.alive){
     player.lastX=player.x;
     player.lastY=player.y;
-    let nx=player.x;
-    let ny=player.y;
-    const moveSpd=aiming?SPD*0.5:SPD;
-    if(keys['KeyW']||keys['ArrowUp'])ny-=moveSpd;
-    if(keys['KeyS']||keys['ArrowDown'])ny+=moveSpd;
-    if(keys['KeyA']||keys['ArrowLeft'])nx-=moveSpd;
-    if(keys['KeyD']||keys['ArrowRight'])nx+=moveSpd;
-    nx=Math.max(PLAYER_R,Math.min(WORLD_W-PLAYER_R,nx));
-    ny=Math.max(PLAYER_R,Math.min(WORLD_H-PLAYER_R,ny));
-    if(!hitObs(nx,player.y,PLAYER_R))player.x=nx;
-    if(!hitObs(player.x,ny,PLAYER_R))player.y=ny;
+
+    if(player.isDashing){
+      player.dashTime--;
+      const progress=1-player.dashTime/DASH_DURATION;
+      player.x=player.dashStartX+player.dashDx*DASH_DIST*progress;
+      player.y=player.dashStartY+player.dashDy*DASH_DIST*progress;
+      player.x=Math.max(PLAYER_R,Math.min(WORLD_W-PLAYER_R,player.x));
+      player.y=Math.max(PLAYER_R,Math.min(WORLD_H-PLAYER_R,player.y));
+      if(player.dashTime<=0){
+        player.isDashing=false;
+      }
+    }else{
+      let nx=player.x;
+      let ny=player.y;
+      const moveSpd=aiming?SPD*0.5:SPD;
+      if(keys['KeyW']||keys['ArrowUp'])ny-=moveSpd;
+      if(keys['KeyS']||keys['ArrowDown'])ny+=moveSpd;
+      if(keys['KeyA']||keys['ArrowLeft'])nx-=moveSpd;
+      if(keys['KeyD']||keys['ArrowRight'])nx+=moveSpd;
+      nx=Math.max(PLAYER_R,Math.min(WORLD_W-PLAYER_R,nx));
+      ny=Math.max(PLAYER_R,Math.min(WORLD_H-PLAYER_R,ny));
+      if(!hitObs(nx,player.y,PLAYER_R))player.x=nx;
+      if(!hitObs(player.x,ny,PLAYER_R))player.y=ny;
+    }
   }
   updateCamera();
   botAI();
   updateEnemyArrow();
   updateDashIndicator();
+  updateParticles();
   ctx.fillStyle=BIG_MAP.color;
   ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.strokeStyle='rgba(255,255,255,.05)';
@@ -678,10 +762,16 @@ function gameLoop(){
   });
   if(player.alive){
     const s=worldToScreen(player.x,player.y);
-    ctx.fillStyle='#0f0';
+    ctx.fillStyle=player.isDashing?'#ff0':'#0f0';
     ctx.beginPath();
     ctx.arc(s.x,s.y,PLAYER_R,0,Math.PI*2);
     ctx.fill();
+    if(player.isDashing){
+      ctx.strokeStyle='rgba(255,255,0,.6)';
+      ctx.lineWidth=3;
+      ctx.stroke();
+      ctx.lineWidth=1;
+    }
   }
   if(enemy.alive){
     const s=worldToScreen(enemy.x,enemy.y);
@@ -690,6 +780,7 @@ function gameLoop(){
     ctx.arc(s.x,s.y,BOT_R,0,Math.PI*2);
     ctx.fill();
   }
+  drawParticles();
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     if(b.enemy&&b.homing&&player.alive){
@@ -710,6 +801,8 @@ function gameLoop(){
       if(t.alive&&Math.abs(b.x-t.x)<16&&Math.abs(b.y-t.y)<16){
         rem=true;
         const dmg=b.damage||50;
+        const hitColor=b.enemy?'#f0f':(b.damage>=70?'#f00':b.damage===50?'#ff0':b.damage===3?'#fff':'#f0f');
+        createHitParticles(t.alive?b.enemy?player.x:enemy.x:b.x,t.alive?b.enemy?player.y:enemy.y:b.y,hitColor);
         if(b.enemy){
           player.hp-=dmg;
           if(player.hp<=0){
@@ -723,6 +816,7 @@ function gameLoop(){
                 player.hp=MAX_HP;
                 player.alive=true;
                 player.dashReady=0;
+                player.isDashing=false;
               }
             },1500);
             checkWin();
