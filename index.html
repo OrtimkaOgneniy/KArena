@@ -367,7 +367,11 @@ function startGame(){
     lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,
     weapon:'smg+',
     damage:20,
-    fireRate:400
+    fireRate:400,
+    predictX:player.x,
+    predictY:player.y,
+    strafeDir:1,
+    strafeTimer:0
   };
   
   currentMapName=selectedMap;
@@ -487,82 +491,107 @@ function botAI(){
   if(!enemy.alive)return;
   
   enemy.moveTimer--;
+  enemy.strafeTimer--;
   
+  // Предсказание движения игрока
+  const dx=player.x-enemy.x;
+  const dy=player.y-enemy.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  
+  // Предсказываем где будет игрок через время полёта пули
+  const flightTime=dist/BSPD;
+  enemy.predictX=player.x+(player.x-(enemy.predictX||player.x))*0.3;
+  enemy.predictY=player.y+(player.y-(enemy.predictY||player.y))*0.3;
+  
+  // <20 HP - убегаем в угол
   if(enemy.hp<20){
     const cornerX=enemy.x<canvas.width/2?canvas.width*0.05:canvas.width*0.95;
     const cornerY=enemy.y<canvas.height/2?canvas.height*0.05:canvas.height*0.95;
     enemy.tx=cornerX;
     enemy.ty=cornerY;
-    const dx=enemy.tx-enemy.x;
-    const dy=enemy.ty-enemy.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist>20){
-      const moveX=enemy.x+(dx/dist)*SPD*0.7;
-      const moveY=enemy.y+(dy/dist)*SPD*0.7;
+    const ddx=enemy.tx-enemy.x;
+    const ddy=enemy.ty-enemy.y;
+    const ddist=Math.sqrt(ddx*ddx+ddy*ddy);
+    if(ddist>20){
+      const moveX=enemy.x+(ddx/ddist)*SPD*0.7;
+      const moveY=enemy.y+(ddy/ddist)*SPD*0.7;
       if(!hitObs(moveX,enemy.y,12))enemy.x=moveX;
       if(!hitObs(enemy.x,moveY,12))enemy.y=moveY;
     }
     return;
   }
   
-  if(enemy.hp<MAX_HP*0.3){
-    if(enemy.moveTimer<=0){
-      enemy.moveTimer=30;
-      const retreatX=enemy.x<canvas.width/2?canvas.width*0.1:canvas.width*0.9;
-      const retreatY=enemy.y<canvas.height/2?canvas.height*0.2:canvas.height*0.8;
-      enemy.tx=retreatX;
-      enemy.ty=retreatY;
+  // Умное позиционирование
+  const hasLineOfSight=canSee(enemy.x,enemy.y,player.x,player.y);
+  
+  if(enemy.hp<MAX_HP*0.4){
+    // Ищем укрытие
+    if(enemy.moveTimer<=0 || !hasLineOfSight){
+      enemy.moveTimer=40+Math.random()*20;
+      // Ищем позицию за препятствием
+      const retreatAngle=Math.atan2(dy,dx)+Math.PI;
+      const retreatDist=200+Math.random()*100;
+      enemy.tx=enemy.x+Math.cos(retreatAngle)*retreatDist;
+      enemy.ty=enemy.y+Math.sin(retreatAngle)*retreatDist;
+      enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
+      enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
     }
   }
-  else if(canSee(enemy.x,enemy.y,player.x,player.y)){
-    if(Date.now()-enemy.lastShot>enemy.fireRate*0.7){
+  else if(hasLineOfSight){
+    // Стреляем с упреждением
+    if(Date.now()-enemy.lastShot>enemy.fireRate*0.6){
       enemy.lastShot=Date.now();
-      const a=Math.atan2(player.y-enemy.y,player.x-enemy.x);
-      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.01,damage:enemy.damage});
+      // Стреляем с упреждением
+      const leadX=enemy.predictX+(player.x-enemy.predictX)*0.5;
+      const leadY=enemy.predictY+(player.y-enemy.predictY)*0.5;
+      const a=Math.atan2(leadY-enemy.y,leadX-enemy.x);
+      bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.015,damage:enemy.damage});
     }
     
-    if(enemy.moveTimer<=0){
-      enemy.moveTimer=20+Math.random()*20;
-      const dx=player.x-enemy.x;
-      const dy=player.y-enemy.y;
-      enemy.tx=enemy.x-dy*0.5;
-      enemy.ty=enemy.y+dx*0.3;
+    // Strafe движение (перемещение из стороны в сторону)
+    if(enemy.strafeTimer<=0){
+      enemy.strafeTimer=30+Math.random()*30;
+      enemy.strafeDir*=-1;
+      const strafeAngle=Math.atan2(dy,dx)+enemy.strafeDir*Math.PI/2;
+      const strafeDist=80+Math.random()*60;
+      enemy.tx=enemy.x+Math.cos(strafeAngle)*strafeDist;
+      enemy.ty=enemy.y+Math.sin(strafeAngle)*strafeDist;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
     }
   }
   else{
+    // Ищем игрока
     if(enemy.moveTimer<=0){
-      enemy.moveTimer=40;
-      const dx=player.x-enemy.x;
-      const dy=player.y-enemy.y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      enemy.tx=enemy.x+dx/dist*100;
-      enemy.ty=enemy.y+dy/dist*100;
+      enemy.moveTimer=30;
+      // Двигаемся к последней известной позиции
+      enemy.tx=enemy.x+dx/dist*120;
+      enemy.ty=enemy.y+dy/dist*120;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
     }
   }
   
-  const dx=enemy.tx-enemy.x;
-  const dy=enemy.ty-enemy.y;
-  const dist=Math.sqrt(dx*dx+dy*dy);
+  // Движение к цели
+  const tdx=enemy.tx-enemy.x;
+  const tdy=enemy.ty-enemy.y;
+  const tdist=Math.sqrt(tdx*tdx+tdy*tdy);
   
-  if(dist>5){
-    const moveX=enemy.x+(dx/dist)*SPD*0.7;
-    const moveY=enemy.y+(dy/dist)*SPD*0.7;
+  if(tdist>5){
+    const moveX=enemy.x+(tdx/tdist)*SPD*0.75;
+    const moveY=enemy.y+(tdy/tdist)*SPD*0.75;
     
     if(!hitObs(moveX,enemy.y,12)){
       enemy.x=moveX;
     }else{
-      enemy.ty+=50*(Math.random()>0.5?1:-1);
+      enemy.ty+=80*(Math.random()>0.5?1:-1);
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
     }
     
     if(!hitObs(enemy.x,moveY,12)){
       enemy.y=moveY;
     }else{
-      enemy.tx+=50*(Math.random()>0.5?1:-1);
+      enemy.tx+=80*(Math.random()>0.5?1:-1);
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
     }
   }
