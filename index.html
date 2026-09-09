@@ -48,8 +48,6 @@ canvas{display:block;width:100%;height:100%}
 .map-btn:hover{background:#0f0;color:#000}
 .map-btn.selected{background:#0f0;color:#000}
 .map-desc{color:#8f8;font-size:13px;margin-bottom:20px;text-align:center;max-width:600px;line-height:1.5}
-#bot-thoughts{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.9);border:2px solid #f00;color:#f00;padding:10px;max-width:280px;font-size:11px;z-index:100;line-height:1.5}
-#thought-title{color:#ff0;font-weight:bold;margin-bottom:5px;font-size:12px}
 </style>
 </head>
 <body>
@@ -108,10 +106,6 @@ canvas{display:block;width:100%;height:100%}
 <div id="final-score"></div>
 <button id="btn-restart" style="background:#0f0;color:#000;border:none;padding:20px 50px;font-size:22px;font-weight:bold;cursor:pointer;font-family:monospace;margin-top:20px">ЕЩЁ РАЗ</button>
 </div>
-<div id="bot-thoughts" style="display:none">
-<div id="thought-title">🤖 МЫСЛИ БОТА</div>
-<div id="thought-content"></div>
-</div>
 </div>
 <script>
 const canvas=document.getElementById('gameCanvas');
@@ -138,7 +132,7 @@ const MAPS={
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
-let playerHistory=[],lastPlayerX, lastPlayerY;
+let lastPlayerX, lastPlayerY;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -182,7 +176,6 @@ document.getElementById('btn-restart').onclick=()=>{
   document.querySelectorAll('.map-btn').forEach(btn=>btn.classList.remove('selected'));
   document.getElementById('mapDesc').innerHTML='Нажми на карту чтобы выбрать';
   document.getElementById('map-start-btn').disabled=true;
-  playerHistory=[];
 };
 
 function switchWeapon(){
@@ -211,23 +204,19 @@ document.addEventListener('mouseup',e=>{
 
 function startGame(){
   gameActive=true;scoreH=0;scoreC=0;bullets=[];recoil=0;mouseDown=false;aiming=false;
-  playerHistory=[];
   const w=WEAPONS[selectedWeapon],map=MAPS[selectedMap];
   player={x:map.spawnPlayer.x*canvas.width,y:map.spawnPlayer.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,ammo:w.maxAmmo,reloading:false,reloadEnd:0,weapon:selectedWeapon};
-  enemy={x:map.spawnEnemy.x*canvas.width,y:map.spawnEnemy.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,weapon:'smg+',damage:20,fireRate:400,predictX:player.x,predictY:player.y,strafeDir:1,strafeTimer:0,thought:'Анализирую...',thoughtTimer:0};
+  enemy={x:map.spawnEnemy.x*canvas.width,y:map.spawnEnemy.y*canvas.height,hp:MAX_HP,alive:true,lastShot:0,tx:map.spawnEnemy.x*canvas.width,ty:map.spawnEnemy.y*canvas.height,moveTimer:0,weapon:'smg+',damage:20,fireRate:400,strafeDir:1,strafeTimer:0};
   currentMapName=selectedMap;
   const cw=canvas.width,ch=canvas.height;
   obstacles=map.obstacles.map(o=>({x:o.x*cw,y:o.y*ch,w:o.w*cw,h:o.h*ch}));
   document.getElementById('weapon-name').textContent=w.name;
-  document.getElementById('bot-thoughts').style.display='block';
   lastPlayerX=player.x;lastPlayerY=player.y;
   updateAmmo();updateHP();
   window.onkeydown=e=>keys[e.code]=true;
   window.onkeyup=e=>keys[e.code]=false;
   gameLoop();
 }
-
-function updateThoughts(thought){enemy.thought=thought;enemy.thoughtTimer=120;document.getElementById('thought-content').innerHTML=thought.split('\n').join('<br>');}
 
 function shoot(){
   if(!gameActive||!player.alive||player.reloading)return;
@@ -280,41 +269,24 @@ function canSee(x1,y1,x2,y2){for(let i=0;i<=20;i++){const t=i/20;if(hitObs(x1+(x
 
 function botAI(){
   if(!enemy.alive)return;
-  enemy.moveTimer--;enemy.strafeTimer--;enemy.thoughtTimer--;
-  if(enemy.thoughtTimer<=0)updateThoughts('...');
+  enemy.moveTimer--;enemy.strafeTimer--;
   
   const dx=player.x-enemy.x,dy=player.y-enemy.y,dist=Math.sqrt(dx*dx+dy*dy);
   
-  // Простое предсказание
-  if(player.alive){
-    const velX=(player.x-lastPlayerX);
-    const velY=(player.y-lastPlayerY);
-    
-    playerHistory.push({x:player.x,y:player.y,vx:velX,vy:velY});
-    if(playerHistory.length>20)playerHistory.shift();
-    
-    lastPlayerX=player.x;lastPlayerY=player.y;
-    
-    // Предсказываем на основе средней скорости
-    if(playerHistory.length>=5){
-      const recent=playerHistory.slice(-5);
-      const avgVelX=recent.reduce((s,p)=>s+p.vx,0)/5;
-      const avgVelY=recent.reduce((s,p)=>s+p.vy,0)/5;
-      
-      const flightTime=dist/BSPD;
-      enemy.predictX=player.x+avgVelX*flightTime*10;
-      enemy.predictY=player.y+avgVelY*flightTime*10;
-    }else{
-      enemy.predictX=player.x;
-      enemy.predictY=player.y;
-    }
-  }
+  // Предсказание
+  const velX=(player.x-lastPlayerX);
+  const velY=(player.y-lastPlayerY);
+  
+  const flightTime=dist/BSPD;
+  const predictX=player.x+velX*flightTime*5;
+  const predictY=player.y+velY*flightTime*5;
+  
+  lastPlayerX=player.x;lastPlayerY=player.y;
   
   if(enemy.hp<20){
     const cornerX=enemy.x<canvas.width/2?canvas.width*0.05:canvas.width*0.95;
     const cornerY=enemy.y<canvas.height/2?canvas.height*0.05:canvas.height*0.95;
     enemy.tx=cornerX;enemy.ty=cornerY;
-    updateThoughts('💀 КРИТИЧЕСКИ МАЛО HP\n🏃 УХОЖУ В УГОЛ');
     const ddx=enemy.tx-enemy.x,ddy=enemy.ty-enemy.y,ddist=Math.sqrt(ddx*ddx+ddy*ddy);
     if(ddist>20){
       const moveX=enemy.x+(ddx/ddist)*SPD*0.7;
@@ -336,17 +308,13 @@ function botAI(){
       enemy.ty=enemy.y+Math.sin(retreatAngle)*retreatDist;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
-      updateThoughts('💔 РАНЕН\n🛡️ ИЩУ УКРЫТИЕ');
     }
   }
   else if(hasLineOfSight){
     if(Date.now()-enemy.lastShot>enemy.fireRate*0.7){
       enemy.lastShot=Date.now();
-      const leadX=enemy.predictX;
-      const leadY=enemy.predictY;
-      const a=Math.atan2(leadY-enemy.y,leadX-enemy.x);
+      const a=Math.atan2(predictY-enemy.y,predictX-enemy.x);
       bullets.push({x:enemy.x,y:enemy.y,dx:Math.cos(a)*BSPD,dy:Math.sin(a)*BSPD,life:120,enemy:true,homing:0.01,damage:enemy.damage});
-      updateThoughts('🎯 ЦЕЛЮСЬ\n📊 ВИЖУ ТЕБЯ');
     }
     if(enemy.strafeTimer<=0){
       enemy.strafeTimer=30+Math.random()*30;
@@ -366,7 +334,6 @@ function botAI(){
       enemy.ty=enemy.y+dy/dist*120;
       enemy.tx=Math.max(50,Math.min(canvas.width-50,enemy.tx));
       enemy.ty=Math.max(50,Math.min(canvas.height-50,enemy.ty));
-      updateThoughts('🔍 ПОТЕРЯЛ ВИЗУАЛ\n🧭 ИДУ К ТЕБЕ');
     }
   }
   
@@ -433,8 +400,8 @@ function gameLoop(){
 }
 
 function checkWin(){
-  if(scoreH>=MAX_SCORE){gameActive=false;document.getElementById('final-title').textContent='🏆 ТЫ ПОБЕДИЛ!';document.getElementById('final-title').style.color='#0f0';document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';document.getElementById('final-screen').style.display='flex';document.getElementById('bot-thoughts').style.display='none';}
-  if(scoreC>=MAX_SCORE){gameActive=false;document.getElementById('final-title').textContent='💀 ТЫ ПРОИГРАЛ';document.getElementById('final-title').style.color='#f00';document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';document.getElementById('final-screen').style.display='flex';document.getElementById('bot-thoughts').style.display='none';}
+  if(scoreH>=MAX_SCORE){gameActive=false;document.getElementById('final-title').textContent='🏆 ТЫ ПОБЕДИЛ!';document.getElementById('final-title').style.color='#0f0';document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';document.getElementById('final-screen').style.display='flex';}
+  if(scoreC>=MAX_SCORE){gameActive=false;document.getElementById('final-title').textContent='💀 ТЫ ПРОИГРАЛ';document.getElementById('final-title').style.color='#f00';document.getElementById('final-score').textContent='ТЫ '+scoreH+' : '+scoreC+' БОТ';document.getElementById('final-screen').style.display='flex';}
 }
 </script>
 </body>
