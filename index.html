@@ -55,6 +55,16 @@ canvas{display:block;width:100%;height:100%}
   z-index:8;
   filter:drop-shadow(0 0 5px #f00);
 }
+#dash-indicator{
+  position:absolute;
+  bottom:160px;
+  left:50%;
+  transform:translateX(-50%);
+  color:#0f0;
+  font-size:14px;
+  font-weight:bold;
+  display:none;
+}
 </style>
 </head>
 <body>
@@ -94,7 +104,8 @@ canvas{display:block;width:100%;height:100%}
 <div id="ammo-bar"></div>
 <div id="reload-msg">ПЕРЕЗАРЯДКА...</div>
 <div id="weapon-name"></div>
-<div id="weapon-hint">ЛКМ — стрельба | Колёсико — смена</div>
+<div id="weapon-hint">ЛКМ — стрельба | Колёсико — смена | Q — рывок</div>
+<div id="dash-indicator">РЫВОК ГОТОВ (Q)</div>
 </div>
 <div id="final-screen">
 <div id="final-title"></div>
@@ -130,6 +141,7 @@ const BOT_RELOAD_TIME=5000;
 let cameraX=0;
 let cameraY=0;
 let enemyArrow=document.getElementById('enemy-arrow');
+let dashIndicator=document.getElementById('dash-indicator');
 
 const BIG_MAP={
   color:'#162d1c',
@@ -158,6 +170,8 @@ const BIG_MAP={
 };
 
 const MAX_SCORE=5,MAX_HP=100,SPD=5,BSPD=10,BR=5;
+const DASH_DIST=180;
+const DASH_COOLDOWN=3000;
 
 function selectWeapon(weapon){
   selectedWeapon=weapon;
@@ -251,7 +265,8 @@ function startGame(){
     reloadEnd:0,
     weapon:selectedWeapon,
     lastX:playerSpawn.x,
-    lastY:playerSpawn.y
+    lastY:playerSpawn.y,
+    dashReady:0
   };
 
   enemy={
@@ -281,11 +296,68 @@ function startGame(){
   updateAmmo();
   updateHP();
   updateCamera();
+  updateDashIndicator();
 
-  window.onkeydown=e=>keys[e.code]=true;
+  window.onkeydown=e=>{
+    keys[e.code]=true;
+    if(e.code==='KeyQ'&&gameActive&&player.alive){
+      performDash();
+    }
+  };
   window.onkeyup=e=>keys[e.code]=false;
 
   gameLoop();
+}
+
+function performDash(){
+  const now=Date.now();
+  if(now<player.dashReady)return;
+
+  let dx=0,dy=0;
+  if(keys['KeyW']||keys['ArrowUp'])dy-=1;
+  if(keys['KeyS']||keys['ArrowDown'])dy+=1;
+  if(keys['KeyA']||keys['ArrowLeft'])dx-=1;
+  if(keys['KeyD']||keys['ArrowRight'])dx+=1;
+
+  if(dx===0&&dy===0){
+    const angle=Math.atan2(mouseY-player.y,mouseX-player.x);
+    dx=Math.cos(angle);
+    dy=Math.sin(angle);
+  }
+
+  const len=Math.hypot(dx,dy);
+  if(len>0){
+    dx/=len;
+    dy/=len;
+  }
+
+  const dashX=player.x+dx*DASH_DIST;
+  const dashY=player.y+dy*DASH_DIST;
+
+  const clampedX=Math.max(PLAYER_R,Math.min(WORLD_W-PLAYER_R,dashX));
+  const clampedY=Math.max(PLAYER_R,Math.min(WORLD_H-PLAYER_R,dashY));
+
+  if(!hitObs(clampedX,clampedY,PLAYER_R)){
+    player.x=clampedX;
+    player.y=clampedY;
+  }
+
+  player.dashReady=now+DASH_COOLDOWN;
+  updateDashIndicator();
+}
+
+function updateDashIndicator(){
+  const now=Date.now();
+  if(now>=player.dashReady){
+    dashIndicator.style.display='block';
+    dashIndicator.textContent='РЫВОК ГОТОВ (Q)';
+    dashIndicator.style.color='#0f0';
+  }else{
+    const cdLeft=Math.ceil((player.dashReady-now)/1000);
+    dashIndicator.style.display='block';
+    dashIndicator.textContent=`РЫВОК: ${cdLeft}с`;
+    dashIndicator.style.color='#888';
+  }
 }
 
 function shoot(){
@@ -294,7 +366,10 @@ function shoot(){
   if(now-player.lastShot<w.fireRate)return;
   if(player.ammo<=0){startReload();return;}
   player.lastShot=now;player.ammo--;updateAmmo();
-  const a=Math.atan2(mouseY-player.y,mouseX-player.x);
+
+  const screenPlayer=worldToScreen(player.x,player.y);
+  const a=Math.atan2(mouseY-screenPlayer.y,mouseX-screenPlayer.x);
+
   const damage=player.weapon==='sniper'&&aiming?w.scopedDamage:w.damage;
   const bulletSpeed=player.weapon==='sniper'&&aiming?BSPD*3:BSPD;
   if(player.weapon==='shotgun'){
@@ -557,6 +632,7 @@ function gameLoop(){
   updateCamera();
   botAI();
   updateEnemyArrow();
+  updateDashIndicator();
   ctx.fillStyle=BIG_MAP.color;
   ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.strokeStyle='rgba(255,255,255,.05)';
@@ -646,6 +722,7 @@ function gameLoop(){
                 player.y=spawn.y;
                 player.hp=MAX_HP;
                 player.alive=true;
+                player.dashReady=0;
               }
             },1500);
             checkWin();
