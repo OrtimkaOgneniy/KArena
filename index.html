@@ -237,6 +237,7 @@ button:hover{
       <span id="your-score">0</span><br>
       <small>ТЫ</small>
     </div>
+
     <div class="score-box bot">
       <span id="bot-score">0</span><br>
       <small>БОТ</small>
@@ -273,16 +274,19 @@ resizeCanvas();
 window.addEventListener("resize",resizeCanvas);
 
 const WORLD_SIZE=1800;
-const HALF_WORLD=WORLD_SIZE/2;
 const ARENA_RADIUS=820;
-const PLAYER_RADIUS=18;
-const BOT_RADIUS=20;
+const PLAYER_RADIUS=22;
+const BOT_RADIUS=24;
+const PLAYER_HEIGHT=105;
+const BOT_HEIGHT=115;
 const MAX_HP=100;
 const MAX_SCORE=5;
-const MOVE_SPEED=250;
-const BOT_SPEED=185;
-const BULLET_SPEED=900;
-const FOV=Math.PI*.72;
+const MOVE_SPEED=145;
+const BOT_SPEED=105;
+const GRAVITY=1150;
+const JUMP_SPEED=410;
+const BULLET_SPEED=780;
+const FOV=Math.PI*.70;
 
 const weapons={
   smg:{
@@ -290,11 +294,12 @@ const weapons={
     damage:6,
     maxAmmo:30,
     fireRate:105,
-    reloadTime:1300,
+    reloadTime:1400,
     spread:.025,
-    bulletSpeed:950,
+    bulletSpeed:900,
     color:"#ff4de4"
   },
+
   shotgun:{
     name:"ДРОБОВИК",
     damage:4,
@@ -303,9 +308,10 @@ const weapons={
     reloadTime:1650,
     spread:.20,
     pellets:14,
-    bulletSpeed:760,
+    bulletSpeed:720,
     color:"#ffaf4d"
   },
+
   sniper:{
     name:"СНАЙПЕРКА",
     damage:50,
@@ -314,7 +320,7 @@ const weapons={
     fireRate:900,
     reloadTime:1900,
     spread:.002,
-    bulletSpeed:1450,
+    bulletSpeed:1350,
     color:"#ffe64d"
   }
 };
@@ -325,8 +331,9 @@ const map={
   floor:"#1b3025",
   sky:"#091116",
   wall:"#496c58",
-  wallLight:"#78b58c",
-  wallDark:"#365040",
+  wallLight:"#8bc49a",
+  wallDark:"#304b3b",
+
   blocks:[
     {x:-160,y:-140,w:240,h:240,h:190},
     {x:-360,y:0,w:120,h:320,h:160},
@@ -341,6 +348,7 @@ const map={
 
     {x:-560,y:-90,w:90,h:160,h:125},
     {x:560,y:90,w:90,h:160,h:125},
+
     {x:-110,y:-610,w:180,h:80,h:100},
     {x:110,y:610,w:180,h:80,h:100},
 
@@ -397,8 +405,16 @@ let bot={
 };
 
 function rectCircleCollision(x,y,r,rect){
-  const nearestX=Math.max(rect.x-rect.w/2,Math.min(x,rect.x+rect.w/2));
-  const nearestY=Math.max(rect.y-rect.h/2,Math.min(y,rect.y+rect.h/2));
+  const nearestX=Math.max(
+    rect.x-rect.w/2,
+    Math.min(x,rect.x+rect.w/2)
+  );
+
+  const nearestY=Math.max(
+    rect.y-rect.h/2,
+    Math.min(y,rect.y+rect.h/2)
+  );
+
   const dx=x-nearestX;
   const dy=y-nearestY;
 
@@ -406,10 +422,14 @@ function rectCircleCollision(x,y,r,rect){
 }
 
 function isBlocked(x,y,radius){
-  if(Math.hypot(x,y)>ARENA_RADIUS-radius)return true;
+  if(Math.hypot(x,y)>ARENA_RADIUS-radius){
+    return true;
+  }
 
   for(const block of map.blocks){
-    if(rectCircleCollision(x,y,radius,block))return true;
+    if(rectCircleCollision(x,y,radius,block)){
+      return true;
+    }
   }
 
   return false;
@@ -417,7 +437,7 @@ function isBlocked(x,y,radius){
 
 function segmentHitsWall(x1,y1,x2,y2){
   const distance=Math.hypot(x2-x1,y2-y1);
-  const steps=Math.max(2,Math.ceil(distance/10));
+  const steps=Math.max(2,Math.ceil(distance/8));
 
   for(let i=1;i<steps;i++){
     const t=i/steps;
@@ -461,7 +481,9 @@ function validSpawn(side){
     ];
 
   for(const spawn of options){
-    if(!isBlocked(spawn.x,spawn.y,PLAYER_RADIUS))return spawn;
+    if(!isBlocked(spawn.x,spawn.y,PLAYER_RADIUS)){
+      return spawn;
+    }
   }
 
   return side==="player"
@@ -470,11 +492,11 @@ function validSpawn(side){
 }
 
 function resetRound(){
-  const pSpawn=validSpawn("player");
-  const bSpawn=validSpawn("bot");
+  const playerSpawn=validSpawn("player");
+  const botSpawn=validSpawn("bot");
 
-  player.x=pSpawn.x;
-  player.y=pSpawn.y;
+  player.x=playerSpawn.x;
+  player.y=playerSpawn.y;
   player.z=0;
   player.vz=0;
   player.grounded=true;
@@ -486,10 +508,10 @@ function resetRound(){
   player.dashReady=0;
   player.dashTime=0;
 
-  bot.x=bSpawn.x;
-  bot.y=bSpawn.y;
-  bot.lastX=bSpawn.x;
-  bot.lastY=bSpawn.y;
+  bot.x=botSpawn.x;
+  bot.y=botSpawn.y;
+  bot.lastX=bot.x;
+  bot.lastY=bot.y;
   bot.hp=MAX_HP;
   bot.ammo=30;
   bot.reloading=false;
@@ -517,6 +539,8 @@ function startGame(){
 
   canvas.focus();
   canvas.requestPointerLock();
+
+  lastFrame=performance.now();
   requestAnimationFrame(loop);
 }
 
@@ -536,10 +560,9 @@ canvas.addEventListener("click",()=>{
 document.addEventListener("mousemove",event=>{
   if(!gameActive||!controlsLocked)return;
 
-  player.angle+=event.movementX*.0024;
-  player.pitch-=event.movementY*.0018;
-
-  player.pitch=Math.max(-.45,Math.min(.45,player.pitch));
+  player.angle+=event.movementX*.0017;
+  player.pitch-=event.movementY*.0012;
+  player.pitch=Math.max(-.35,Math.min(.35,player.pitch));
 });
 
 document.addEventListener("keydown",event=>{
@@ -609,8 +632,9 @@ canvas.addEventListener("wheel",event=>{
 function jump(){
   if(!gameActive||!controlsLocked||!player.grounded)return;
 
-  player.vz=460;
+  player.vz=JUMP_SPEED;
   player.grounded=false;
+
   spawnParticles(player.x,player.y,"#d9ffff",12);
 }
 
@@ -626,8 +650,9 @@ function dash(){
     return;
   }
 
-  player.dashTime=.10;
+  player.dashTime=.12;
   player.dashReady=now+3000;
+
   player.dashDirX=Math.cos(player.angle);
   player.dashDirY=Math.sin(player.angle);
 
@@ -671,14 +696,15 @@ function shoot(){
 
   for(let i=0;i<shotCount;i++){
     const spread=(Math.random()-.5)*weapon.spread;
-    const angle=player.angle+spread;
+    const shotAngle=player.angle+spread;
 
     bullets.push({
       x:player.x,
       y:player.y,
-      vx:Math.cos(angle)*weapon.bulletSpeed,
-      vy:Math.sin(angle)*weapon.bulletSpeed,
-      life:1.2,
+      height:player.z+58,
+      vx:Math.cos(shotAngle)*weapon.bulletSpeed,
+      vy:Math.sin(shotAngle)*weapon.bulletSpeed,
+      life:1.5,
       enemy:false,
       damage:selectedWeapon==="sniper"&&aiming
         ?weapon.scopedDamage
@@ -707,26 +733,23 @@ function botShoot(){
     return;
   }
 
-  if(now-bot.lastShot<390)return;
+  if(now-bot.lastShot<500)return;
 
   bot.lastShot=now;
   bot.ammo--;
 
-  const targetX=player.x;
-  const targetY=player.y-player.z*.13;
-  const dx=targetX-bot.x;
-  const dy=targetY-bot.y;
+  const dx=player.x-bot.x;
+  const dy=(player.y-player.z*.25)-bot.y;
   const length=Math.hypot(dx,dy)||1;
-
-  const spread=(Math.random()-.5)*.025;
-  const baseAngle=Math.atan2(dy,dx)+spread;
+  const shotAngle=Math.atan2(dy,dx)+(Math.random()-.5)*.018;
 
   bullets.push({
     x:bot.x,
     y:bot.y,
-    vx:Math.cos(baseAngle)*760,
-    vy:Math.sin(baseAngle)*760,
-    life:1.4,
+    height:70,
+    vx:Math.cos(shotAngle)*BULLET_SPEED,
+    vy:Math.sin(shotAngle)*BULLET_SPEED,
+    life:1.7,
     enemy:true,
     damage:12,
     color:"#ff45d8"
@@ -740,62 +763,9 @@ function botShoot(){
   }
 }
 
-function updatePlayer(dt){
-  const now=performance.now();
-
-  if(player.reloading&&now>=player.reloadEnd){
-    player.reloading=false;
-    player.ammo=weapons[selectedWeapon].maxAmmo;
-    document.getElementById("reload").style.display="none";
-  }
-
-  player.vz-=1100*dt;
-  player.z+=player.vz*dt;
-
-  if(player.z<=0){
-    player.z=0;
-    player.vz=0;
-    player.grounded=true;
-  }else{
-    player.grounded=false;
-  }
-
-  let localX=0;
-  let localY=0;
-
-  if(keys.KeyW||keys.ArrowUp)localY+=1;
-  if(keys.KeyS||keys.ArrowDown)localY-=1;
-  if(keys.KeyA||keys.ArrowLeft)localX-=1;
-  if(keys.KeyD||keys.ArrowRight)localX+=1;
-
-  let moveX=0;
-  let moveY=0;
-
-  if(localX!==0||localY!==0){
-    const length=Math.hypot(localX,localY);
-    localX/=length;
-    localY/=length;
-
-    moveX=
-      Math.cos(player.angle)*localY+
-      Math.cos(player.angle+Math.PI/2)*localX;
-
-    moveY=
-      Math.sin(player.angle)*localY+
-      Math.sin(player.angle+Math.PI/2)*localX;
-
-    moveX*=MOVE_SPEED*dt;
-    moveY*=MOVE_SPEED*dt;
-  }
-
-  if(player.dashTime>0){
-    player.dashTime-=dt;
-    moveX=player.dashDirX*1500*dt;
-    moveY=player.dashDirY*1500*dt;
-  }
-
-  const nextX=player.x+moveX;
-  const nextY=player.y+moveY;
+function tryMovePlayer(dx,dy){
+  const nextX=player.x+dx;
+  const nextY=player.y+dy;
 
   if(!isBlocked(nextX,player.y,PLAYER_RADIUS)){
     player.x=nextX;
@@ -806,16 +776,94 @@ function updatePlayer(dt){
   }
 }
 
-function tryBotMove(dx,dy){
-  const nextX=bot.x+dx;
-  const nextY=bot.y+dy;
+function updatePlayer(dt){
+  const now=performance.now();
 
-  if(!isBlocked(nextX,bot.y,BOT_RADIUS)){
-    bot.x=nextX;
+  if(player.reloading&&now>=player.reloadEnd){
+    player.reloading=false;
+    player.ammo=weapons[selectedWeapon].maxAmmo;
+    document.getElementById("reload").style.display="none";
   }
 
-  if(!isBlocked(bot.x,nextY,BOT_RADIUS)){
-    bot.y=nextY;
+  player.vz-=GRAVITY*dt;
+  player.z+=player.vz*dt;
+
+  if(player.z<=0){
+    player.z=0;
+    player.vz=0;
+    player.grounded=true;
+  }else{
+    player.grounded=false;
+  }
+
+  let forward=0;
+  let side=0;
+
+  if(keys.KeyW||keys.ArrowUp)forward+=1;
+  if(keys.KeyS||keys.ArrowDown)forward-=1;
+  if(keys.KeyA||keys.ArrowLeft)side-=1;
+  if(keys.KeyD||keys.ArrowRight)side+=1;
+
+  const length=Math.hypot(forward,side)||1;
+
+  if(forward!==0||side!==0){
+    forward/=length;
+    side/=length;
+
+    const dx=(
+      Math.cos(player.angle)*forward+
+      Math.cos(player.angle+Math.PI/2)*side
+    );
+
+    const dy=(
+      Math.sin(player.angle)*forward+
+      Math.sin(player.angle+Math.PI/2)*side
+    );
+
+    const speed=aiming?MOVE_SPEED*.75:MOVE_SPEED;
+
+    tryMovePlayer(
+      dx*speed*dt,
+      dy*speed*dt
+    );
+  }
+
+  if(player.dashTime>0){
+    player.dashTime-=dt;
+
+    tryMovePlayer(
+      player.dashDirX*850*dt,
+      player.dashDirY*850*dt
+    );
+  }
+}
+
+function tryMoveBot(dx,dy){
+  const directX=bot.x+dx;
+  const directY=bot.y+dy;
+
+  if(!isBlocked(directX,bot.y,BOT_RADIUS)){
+    bot.x=directX;
+  }
+
+  if(!isBlocked(bot.x,directY,BOT_RADIUS)){
+    bot.y=directY;
+  }
+
+  const moved=Math.hypot(bot.x-bot.lastX,bot.y-bot.lastY);
+
+  if(moved<.5){
+    bot.stuckTimer+=1;
+  }else{
+    bot.stuckTimer=0;
+  }
+
+  bot.lastX=bot.x;
+  bot.lastY=bot.y;
+
+  if(bot.stuckTimer>16){
+    bot.strafeDirection*=-1;
+    bot.stuckTimer=0;
   }
 }
 
@@ -831,11 +879,11 @@ function updateBot(dt){
     }else{
       const dx=bot.x-player.x;
       const dy=bot.y-player.y;
-      const distance=Math.hypot(dx,dy)||1;
+      const length=Math.hypot(dx,dy)||1;
 
-      tryBotMove(
-        dx/distance*BOT_SPEED*.78*dt,
-        dy/distance*BOT_SPEED*.78*dt
+      tryMoveBot(
+        dx/length*BOT_SPEED*.65*dt,
+        dy/length*BOT_SPEED*.65*dt
       );
 
       return;
@@ -845,34 +893,34 @@ function updateBot(dt){
   const dx=player.x-bot.x;
   const dy=player.y-bot.y;
   const distance=Math.hypot(dx,dy)||1;
-  const seesPlayer=botCanSeePlayer();
+  const visible=botCanSeePlayer();
 
   let moveX=0;
   let moveY=0;
 
   if(bot.hp<30){
-    if(distance<310){
+    if(distance<320){
       moveX=-dx/distance;
       moveY=-dy/distance;
     }else{
       bot.strafeTimer-=dt;
 
       if(bot.strafeTimer<=0){
-        bot.strafeTimer=.5+Math.random()*.8;
+        bot.strafeTimer=.7+Math.random();
         bot.strafeDirection*=-1;
       }
 
       moveX=-dy/distance*bot.strafeDirection;
       moveY=dx/distance*bot.strafeDirection;
     }
-  }else if(distance>250){
+  }else if(distance>260||!visible){
     moveX=dx/distance;
     moveY=dy/distance;
   }else{
     bot.strafeTimer-=dt;
 
     if(bot.strafeTimer<=0){
-      bot.strafeTimer=.45+Math.random()*.8;
+      bot.strafeTimer=.7+Math.random();
       bot.strafeDirection*=-1;
     }
 
@@ -880,26 +928,51 @@ function updateBot(dt){
     moveY=dx/distance*bot.strafeDirection;
   }
 
-  tryBotMove(
-    moveX*BOT_SPEED*dt,
-    moveY*BOT_SPEED*dt
+  const speed=bot.hp<30?BOT_SPEED*.8:BOT_SPEED;
+
+  tryMoveBot(
+    moveX*speed*dt,
+    moveY*speed*dt
   );
 
-  if(seesPlayer&&distance<900){
+  if(visible&&distance<1000){
     botShoot();
   }
+}
+
+function projectileHitsWall(bullet){
+  for(const block of map.blocks){
+    if(
+      bullet.x>block.x-block.w/2&&
+      bullet.x<block.x+block.w/2&&
+      bullet.y>block.y-block.h/2&&
+      bullet.y<block.y+block.h/2
+    ){
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function updateBullets(dt){
   for(let i=bullets.length-1;i>=0;i--){
     const bullet=bullets[i];
 
+    const oldX=bullet.x;
+    const oldY=bullet.y;
+
     bullet.x+=bullet.vx*dt;
     bullet.y+=bullet.vy*dt;
     bullet.life-=dt;
 
-    if(isBlocked(bullet.x,bullet.y,3)||bullet.life<=0){
-      spawnParticles(bullet.x,bullet.y,bullet.color,3);
+    if(projectileHitsWall(bullet)){
+      spawnParticles(bullet.x,bullet.y,bullet.color,4);
+      bullets.splice(i,1);
+      continue;
+    }
+
+    if(bullet.life<=0){
       bullets.splice(i,1);
       continue;
     }
@@ -910,7 +983,7 @@ function updateBullets(dt){
         bullet.y-bot.y
       );
 
-      if(hitDistance<BOT_RADIUS+8){
+      if(hitDistance<BOT_RADIUS+10){
         bot.hp=Math.max(0,bot.hp-bullet.damage);
         spawnParticles(bot.x,bot.y,"#ff5353",15);
         showHit();
@@ -924,12 +997,13 @@ function updateBullets(dt){
         continue;
       }
     }else{
+      const targetY=player.y-player.z*.2;
       const hitDistance=Math.hypot(
         bullet.x-player.x,
-        bullet.y-(player.y-player.z*.15)
+        bullet.y-targetY
       );
 
-      if(hitDistance<PLAYER_RADIUS+9){
+      if(hitDistance<PLAYER_RADIUS+10){
         player.hp=Math.max(0,player.hp-bullet.damage);
         spawnParticles(player.x,player.y,"#ff49d7",12);
         showDamage();
@@ -970,6 +1044,7 @@ function finishRound(winner){
     if(document.getElementById("end-screen").style.display!=="flex"){
       gameActive=true;
       resetRound();
+      lastFrame=performance.now();
       requestAnimationFrame(loop);
     }
   },1100);
@@ -978,8 +1053,8 @@ function finishRound(winner){
 function spawnParticles(x,y,color,count){
   for(let i=0;i<count;i++){
     particles.push({
-      x:x+(Math.random()-.5)*10,
-      y:y+(Math.random()-.5)*10,
+      x:x+(Math.random()-.5)*12,
+      y:y+(Math.random()-.5)*12,
       vx:(Math.random()-.5)*80,
       vy:(Math.random()-.5)*80,
       life:.2+Math.random()*.25,
@@ -1006,26 +1081,24 @@ function updateParticles(dt){
 }
 
 function showHit(){
-  const hit=document.getElementById("hit");
-
-  hit.style.display="block";
+  const element=document.getElementById("hit");
+  element.style.display="block";
 
   setTimeout(()=>{
-    hit.style.display="none";
+    element.style.display="none";
   },90);
 }
 
 function showDamage(){
-  const damage=document.getElementById("damage");
-
-  damage.style.opacity="1";
+  const element=document.getElementById("damage");
+  element.style.opacity="1";
 
   setTimeout(()=>{
-    damage.style.opacity="0";
+    element.style.opacity="0";
   },140);
 }
 
-function cameraTransform(x,y){
+function cameraPosition(x,y){
   const dx=x-player.x;
   const dy=y-player.y;
 
@@ -1041,29 +1114,36 @@ function cameraTransform(x,y){
 }
 
 function project(x,y,height=0){
-  const pos=cameraTransform(x,y);
+  const pos=cameraPosition(x,y);
 
-  if(pos.forward<8)return null;
+  if(pos.forward<10)return null;
 
   const halfWidth=Math.tan(FOV/2)*pos.forward;
 
-  if(Math.abs(pos.side)>halfWidth*1.35)return null;
+  if(Math.abs(pos.side)>halfWidth*1.35){
+    return null;
+  }
 
   const screenX=
     canvas.width/2+
     pos.side/halfWidth*canvas.width/2;
 
-  const horizon=canvas.height*.53+player.pitch*canvas.height*.5;
-  const scale=620/pos.forward;
+  const horizon=
+    canvas.height*.53+
+    player.pitch*canvas.height*.45;
 
-  const screenY=horizon-height*scale-player.z*scale*.18;
+  const scale=640/pos.forward;
+
+  const screenY=
+    horizon-
+    height*scale-
+    player.z*scale*.18;
 
   return{
     x:screenX,
     y:screenY,
     scale,
-    forward:pos.forward,
-    side:pos.side
+    forward:pos.forward
   };
 }
 
@@ -1093,14 +1173,14 @@ function drawBlock(block){
   const bottom=block.y+block.h/2;
   const height=block.h;
 
-  const floor=[
+  const bottomPoints=[
     project(left,top,0),
     project(right,top,0),
     project(right,bottom,0),
     project(left,bottom,0)
   ];
 
-  const roof=[
+  const topPoints=[
     project(left,top,height),
     project(right,top,height),
     project(right,bottom,height),
@@ -1108,38 +1188,40 @@ function drawBlock(block){
   ];
 
   drawQuad(
-    [floor[0],floor[1],roof[1],roof[0]],
+    [bottomPoints[0],bottomPoints[1],topPoints[1],topPoints[0]],
     map.wallDark,
     map.wallLight
   );
 
   drawQuad(
-    [floor[1],floor[2],roof[2],roof[1]],
+    [bottomPoints[1],bottomPoints[2],topPoints[2],topPoints[1]],
     map.wall,
     map.wallLight
   );
 
   drawQuad(
-    [floor[2],floor[3],roof[3],roof[2]],
+    [bottomPoints[2],bottomPoints[3],topPoints[3],topPoints[2]],
     "#3e5c4a",
     map.wallLight
   );
 
   drawQuad(
-    [floor[3],floor[0],roof[0],roof[3]],
+    [bottomPoints[3],bottomPoints[0],topPoints[0],topPoints[3]],
     "#587a64",
     map.wallLight
   );
 
   drawQuad(
-    [roof[0],roof[1],roof[2],roof[3]],
-    "#80ad8d",
+    [topPoints[0],topPoints[1],topPoints[2],topPoints[3]],
+    "#82b18e",
     map.wallLight
   );
 }
 
 function drawFloor(){
-  const horizon=canvas.height*.53+player.pitch*canvas.height*.5;
+  const horizon=
+    canvas.height*.53+
+    player.pitch*canvas.height*.45;
 
   ctx.fillStyle=map.sky;
   ctx.fillRect(0,0,canvas.width,horizon);
@@ -1151,7 +1233,7 @@ function drawFloor(){
   ctx.lineWidth=1;
 
   for(let distance=80;distance<1500;distance+=80){
-    const y=horizon+620/distance*150;
+    const y=horizon+640/distance*150;
 
     ctx.beginPath();
     ctx.moveTo(0,y);
@@ -1159,11 +1241,10 @@ function drawFloor(){
     ctx.stroke();
   }
 
-  const angleStep=.14;
-
-  for(let a=-FOV/2;a<=FOV/2;a+=angleStep){
-    const x=canvas.width/2+
-      Math.tan(a)/Math.tan(FOV/2)*
+  for(let angle=-FOV/2;angle<=FOV/2;angle+=.14){
+    const x=
+      canvas.width/2+
+      Math.tan(angle)/Math.tan(FOV/2)*
       canvas.width/2;
 
     ctx.beginPath();
@@ -1180,42 +1261,56 @@ function drawBot(){
 
   if(!p||p.forward>1300)return;
 
-  const size=Math.max(12,p.scale*.85);
+  const size=Math.max(14,p.scale*.95);
 
-  ctx.fillStyle="#cf343b";
+  ctx.fillStyle="#d8343d";
   ctx.fillRect(
     p.x-size*.48,
-    p.y-size*1.65,
+    p.y-size*1.7,
     size*.96,
-    size*1.65
+    size*1.7
   );
 
-  ctx.fillStyle="#ff9e85";
+  ctx.fillStyle="#ffad91";
   ctx.fillRect(
-    p.x-size*.36,
-    p.y-size*2.25,
-    size*.72,
-    size*.6
+    p.x-size*.38,
+    p.y-size*2.32,
+    size*.76,
+    size*.62
   );
 
-  ctx.fillStyle="#30171d";
+  ctx.fillStyle="#32171d";
   ctx.fillRect(
-    p.x-size*.32,
-    p.y-size*2.04,
-    size*.64,
-    size*.13
+    p.x-size*.34,
+    p.y-size*2.1,
+    size*.68,
+    size*.14
+  );
+
+  ctx.fillStyle="#242a32";
+  ctx.fillRect(
+    p.x+size*.42,
+    p.y-size*1.15,
+    size*.75,
+    size*.12
   );
 }
 
 function drawBullets(){
   for(const bullet of bullets){
-    const p=project(bullet.x,bullet.y,0);
+    const p=project(bullet.x,bullet.y,bullet.height);
 
     if(!p)continue;
 
     ctx.fillStyle=bullet.color;
     ctx.beginPath();
-    ctx.arc(p.x,p.y,Math.max(2,p.scale*.07),0,Math.PI*2);
+    ctx.arc(
+      p.x,
+      p.y,
+      Math.max(2,p.scale*.07),
+      0,
+      Math.PI*2
+    );
     ctx.fill();
   }
 }
@@ -1226,15 +1321,57 @@ function drawParticles(){
 
     if(!p)continue;
 
-    ctx.globalAlpha=Math.max(0,particle.life/particle.maxLife);
+    ctx.globalAlpha=Math.max(
+      0,
+      particle.life/particle.maxLife
+    );
+
     ctx.fillStyle=particle.color;
 
     ctx.beginPath();
-    ctx.arc(p.x,p.y,Math.max(1,p.scale*.04),0,Math.PI*2);
+    ctx.arc(
+      p.x,
+      p.y,
+      Math.max(1,p.scale*.045),
+      0,
+      Math.PI*2
+    );
     ctx.fill();
 
     ctx.globalAlpha=1;
   }
+}
+
+function drawPlayerModel(){
+  const p=project(player.x,player.y,player.z);
+
+  if(!p)return;
+
+  const size=Math.max(15,p.scale*1.1);
+
+  ctx.fillStyle="#42ff70";
+  ctx.fillRect(
+    p.x-size*.5,
+    p.y-size*1.8,
+    size,
+    size*1.8
+  );
+
+  ctx.fillStyle="#baffc5";
+  ctx.fillRect(
+    p.x-size*.38,
+    p.y-size*2.45,
+    size*.76,
+    size*.62
+  );
+
+  ctx.fillStyle="#0b4321";
+  ctx.fillRect(
+    p.x-size*.3,
+    p.y-size*2.23,
+    size*.6,
+    size*.13
+  );
 }
 
 function drawWeapon(){
@@ -1243,18 +1380,32 @@ function drawWeapon(){
   const y=canvas.height*.78;
 
   ctx.save();
-
   ctx.translate(x,y);
-  ctx.rotate(aiming?-0.02:0.08);
+  ctx.rotate(aiming?-.02:.08);
 
   ctx.fillStyle="#20242a";
-  ctx.fillRect(0,0,canvas.width*.18,canvas.height*.07);
+  ctx.fillRect(
+    0,
+    0,
+    canvas.width*.18,
+    canvas.height*.07
+  );
 
   ctx.fillStyle=weapon.color;
-  ctx.fillRect(canvas.width*.13,canvas.height*.015,canvas.width*.13,canvas.height*.022);
+  ctx.fillRect(
+    canvas.width*.13,
+    canvas.height*.015,
+    canvas.width*.13,
+    canvas.height*.022
+  );
 
   ctx.fillStyle="#111";
-  ctx.fillRect(canvas.width*.06,canvas.height*.06,canvas.width*.045,canvas.height*.09);
+  ctx.fillRect(
+    canvas.width*.06,
+    canvas.height*.06,
+    canvas.width*.045,
+    canvas.height*.09
+  );
 
   ctx.restore();
 }
@@ -1264,18 +1415,19 @@ function render(){
 
   drawFloor();
 
-  const blocks=[...map.blocks]
+  const visibleBlocks=[...map.blocks]
     .sort((a,b)=>{
       const da=Math.hypot(a.x-player.x,a.y-player.y);
       const db=Math.hypot(b.x-player.x,b.y-player.y);
       return db-da;
     });
 
-  for(const block of blocks){
+  for(const block of visibleBlocks){
     drawBlock(block);
   }
 
   drawBot();
+  drawPlayerModel();
   drawBullets();
   drawParticles();
   drawWeapon();
@@ -1284,7 +1436,7 @@ function render(){
     const cx=canvas.width/2;
     const cy=canvas.height/2;
 
-    ctx.strokeStyle="rgba(255,255,255,.8)";
+    ctx.strokeStyle="rgba(255,255,255,.85)";
     ctx.lineWidth=1;
 
     ctx.beginPath();
@@ -1305,8 +1457,8 @@ function updateHud(){
 
   document.getElementById("your-score").textContent=scoreYou;
   document.getElementById("bot-score").textContent=scoreBot;
-
   document.getElementById("weapon-name").textContent=weapon.name;
+
   document.getElementById("ammo").textContent=
     `${player.ammo} / ${weapon.maxAmmo}`;
 
@@ -1322,8 +1474,12 @@ function updateHud(){
   document.getElementById("enemy-fill").style.width=
     Math.max(0,bot.hp)+"%";
 
+  const left=Math.max(
+    0,
+    player.dashReady-performance.now()
+  );
+
   const dash=document.getElementById("dash");
-  const left=Math.max(0,player.dashReady-performance.now());
 
   if(player.dashTime>0){
     dash.textContent="РЫВОК!";
@@ -1332,7 +1488,8 @@ function updateHud(){
     dash.textContent="РЫВОК ГОТОВ — Q";
     dash.style.color="#78ff9b";
   }else{
-    dash.textContent=`РЫВОК: ${(left/1000).toFixed(1)}с`;
+    dash.textContent=
+      `РЫВОК: ${(left/1000).toFixed(1)}с`;
     dash.style.color="#aaa";
   }
 }
